@@ -1,0 +1,95 @@
+:root{
+  --paper:#f7f5ef; --line:#ded8c7; --ink:#24261f; --soft:#5b5c52;
+  --blue:#1f4788; --blue-deep:#16325c; --green:#2e7d46; --green-bg:#e5f3e8;
+  --red:#b3402a; --red-bg:#fbeae5; --amber:#a9772c; --card:#fffdf8;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);
+  font-family:"Iowan Old Style","Palatino Linotype",Georgia,"Times New Roman",serif;-webkit-font-smoothing:antialiased}
+body{background-image:linear-gradient(var(--line) 1px,transparent 1px);background-size:100% 34px;min-height:100vh}
+.wrap{max-width:820px;margin:0 auto;padding:26px 16px 80px}
+header.site{text-align:center;margin-bottom:18px}
+.kicker{font-family:"Courier New",monospace;font-size:12.5px;letter-spacing:.14em;color:var(--soft);margin-bottom:6px}
+h1{font-size:30px;margin:0 0 6px;color:var(--blue-deep)}
+header.site p{margin:0;color:var(--soft);font-size:15px}
+
+.tabs{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:20px 0 10px}
+.tabs button{font-family:"Courier New",monospace;font-size:13px;padding:9px 13px;background:transparent;
+  border:1.5px solid var(--ink);color:var(--ink);cursor:pointer;border-radius:2px}
+.tabs button:hover:not(.active){background:#eae6d9}
+.tabs button.active{background:var(--blue-deep);border-color:var(--blue-deep);color:#fff}
+.tabs button.mix{border-style:dashed}
+.tabs button.mix.active{border-style:solid}
+
+.toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;
+  font-family:"Courier New",monospace;font-size:13px;color:var(--soft);margin:6px 0 4px}
+.switch{display:flex;align-items:center;gap:8px;cursor:pointer}
+.switch input{width:17px;height:17px;accent-color:var(--blue-deep)}
+.link-btn{background:none;border:none;font:inherit;color:var(--soft);text-decoration:underline;cursor:pointer;padding:0}
+.link-btn:hover{color:var(--red)}
+
+.statline{display:flex;justify-content:space-between;gap:10px;font-family:"Courier New",monospace;font-size:13px;color:var(--soft);margin:14px 0 4px}
+.progress-track{height:6px;background:#e6e1d2;border:1px solid var(--ink);margin-bottom:18px}
+.progress-fill{height:100%;background:var(--blue-deep);width:0}
+
+.card{background:var(--card);border:1.5px solid var(--ink);box-shadow:4px 4px 0 rgba(36,38,31,.12);padding:20px 18px 22px}
+.qhead{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;
+  font-family:"Courier New",monospace;font-size:13px;color:var(--soft);margin-bottom:12px}
+.source-note{color:var(--amber);font-style:italic}
+.jump select{font-family:"Courier New",monospace;font-size:13px;padding:4px 6px;border:1px solid var(--ink);background:#fff}
+
+.stem img,.oimg img,.full img{display:block;height:auto;max-width:none;width:calc(var(--w) * var(--k) * 1px)}
+.stem{margin-bottom:14px;overflow-x:auto}
+.full{margin-bottom:14px;overflow-x:auto}
+
+.opt-row{margin-bottom:10px}
+.opt{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:10px 12px;background:#fff;
+  border:1.5px solid var(--ink);border-radius:3px;cursor:pointer;color:inherit;font:inherit}
+.opt:hover:not(:disabled){background:#eef2f8;border-color:var(--blue-deep)}
+.opt:disabled{cursor:default}
+.badge{flex:0 0 32px;height:32px;display:flex;align-items:center;justify-content:center;border:1.5px solid var(--ink);
+  border-radius:50%;font-family:"Courier New",monospace;font-weight:bold;font-size:15px;background:#fff}
+.oimg{overflow-x:auto;min-width:0}
+.opt.correct{background:var(--green-bg);border-color:var(--green)}
+.opt.correct .badge{background:var(--green);border-color:var(--green);color:#fff}
+.opt.wrong{background:var(--red-bg);border-color:var(--red)}
+.opt.wrong .badge{background:var(--red);border-color:var(--red);color:#fff}
+.opt.dim{opacity:.62}
+
+.exp{margin:6px 0 0 44px;padding:8px 10px;border-left:4px solid var(--line);font-size:15px;line-height:1.45;background:#faf8f1}
+.exp.ok{border-left-color:var(--green)}
+.exp.no{border-left-color:var(--red)}
+.exp .tag{display:inline-block;font-family:"Courier New",monospace;font-size:12px;font-weight:bold;margin-right:6px;letter-spacing:.03em}
+.exp.ok .tag{color:var(--green)}
+.exp.no .tag{color:var(--red)}
+.exp .mine{font-family:"Courier New",monospace;font-size:11.5px;background:var(--ink);color:#fff;padding:1px 6px;border-radius:2px;margin-left:6px}
+
+.letters{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:8px}
+@media(max-width:520px){.letters{grid-template-columns:repeat(2,1fr)}.exp{margin-left:0}}
+.letters .opt{justify-content:center;font-family:"Courier New",monospace;font-weight:bold;font-size:17px;padding:13px 6px}
+
+.verdict{font-size:16px;font-weight:600;margin:14px 0 6px}
+.verdict.ok{color:var(--green)} .verdict.no{color:var(--red)}
+
+.nav{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:20px;flex-wrap:wrap}
+.btn{font-family:"Courier New",monospace;font-size:14px;padding:10px 16px;background:var(--ink);color:#fff;border:none;cursor:pointer;border-radius:2px}
+.btn.secondary{background:transparent;color:var(--ink);border:1.5px solid var(--ink)}
+.btn:disabled{background:#cfcabb;border-color:#cfcabb;color:#fff;cursor:default}
+
+.setup h2{margin:0 0 4px;font-size:21px;color:var(--blue-deep)}
+.setup .lead{color:var(--soft);margin:0 0 16px;font-size:15px}
+.ygroup{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;padding:10px 12px;border:1px dashed var(--ink);background:#fff}
+.ygroup .yl{font-family:"Courier New",monospace;font-weight:bold;min-width:56px}
+.chip{font-family:"Courier New",monospace;font-size:13px;padding:7px 12px;border:1.5px solid var(--ink);background:#fff;cursor:pointer;border-radius:2px;color:var(--ink)}
+.chip.on{background:var(--blue-deep);border-color:var(--blue-deep);color:#fff}
+.setup .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:14px 0}
+.setup select{font-family:"Courier New",monospace;font-size:14px;padding:6px 8px;border:1px solid var(--ink);background:#fff}
+.poolinfo{font-family:"Courier New",monospace;font-size:13px;color:var(--soft)}
+
+.summary{text-align:center;padding:26px 6px}
+.summary .big{font-size:50px;font-weight:700;color:var(--blue-deep);margin:4px 0}
+.summary .sub{color:var(--soft);margin-bottom:18px}
+.missed{text-align:left;max-width:520px;margin:0 auto 20px;font-family:"Courier New",monospace;font-size:13px;line-height:1.7;color:var(--red)}
+.missed strong{color:var(--ink)}
+.summary .btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+footer.site{text-align:center;margin-top:30px;font-size:12px;color:var(--soft)}
