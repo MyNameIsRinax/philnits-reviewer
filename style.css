@@ -130,7 +130,14 @@ svg { flex: 0 0 auto; }
 .muted { color: var(--muted); }
 
 .wrap { max-width: 920px; margin: 0 auto; padding: 16px 16px 48px; }
-body.has-bar .wrap { padding-bottom: 120px; }
+.site-foot {
+  max-width: 920px; margin: 0 auto; padding: 18px 16px 28px;
+  border-top: 1px solid var(--border);
+  text-align: center; font-size: 13px; line-height: 1.5; color: var(--faint);
+}
+.site-foot p { margin: 2px 0; }
+.site-foot b { color: var(--muted); font-weight: 600; }
+body.has-bar .site-foot { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
 
 /* ---------- top bar ---------- */
 .topbar {
