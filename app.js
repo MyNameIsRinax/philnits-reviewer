@@ -6,7 +6,6 @@
   const LS_KEY = 'ipq_v3';
   const LS_OLD = 'ipq_v2';
   const OLD_ORDER = ['2024A', '2024S', '2023A', '2023S', '2022A', '2022S']; // exam order of the v2 save format
-  const NEW_EXAMS = { '2026S': 1, '2025A': 1, '2025S': 1 };
   const LET = ['A', 'B', 'C', 'D'];
   const TOPICS = [
     { id: 't', name: 'Technology', desc: 'Computers, algorithms, networks, databases, security' },
@@ -341,7 +340,7 @@
       const t = s ? tally(s) : null;
       const cta = s && s.done ? 'Results' : t && t.done ? 'Continue' : 'Start';
       return `<button type="button" class="card exam" data-act="exam" data-key="${ex.key}">
-        <div class="row-top"><div><b>${esc(ex.label)}</b><small>${NEW_EXAMS[ex.key] ? '<span class="badge-new">NEW</span> ' : ''}${esc(ex.sub)}</small></div></div>
+        <div class="row-top"><div><b>${esc(ex.label)}</b><small>${esc(ex.sub)}</small></div></div>
         <div class="meter"><i style="width:${pct(e.seen, ex.qs.length)}%"></i></div>
         <div class="row-foot"><span>${e.seen ? e.seen + '/' + ex.qs.length + ' · ' + pct(e.ok, e.seen) + '%' : 'Not started'}</span><span class="go">${cta}${ic('arrowR')}</span></div>
       </button>`;

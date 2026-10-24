@@ -32,7 +32,7 @@
   --radius: 14px;
   --img-filter: none;
   --img-blend: multiply;
-  --logo-bg: transparent;
+  --logo-filter: none;
   color-scheme: light;
 }
 
@@ -69,7 +69,7 @@
     --shadow-lg: 0 16px 48px rgba(0, 0, 0, .55);
     --img-filter: invert(1) brightness(.9);
     --img-blend: screen;
-    --logo-bg: #f1f3f7;
+    --logo-filter: invert(1) brightness(.93);
     color-scheme: dark;
   }
 }
@@ -106,7 +106,7 @@
   --shadow-lg: 0 16px 48px rgba(0, 0, 0, .55);
   --img-filter: invert(1) brightness(.9);
   --img-blend: screen;
-  --logo-bg: #f1f3f7;
+  --logo-filter: invert(1) brightness(.93);
   color-scheme: dark;
 }
 
@@ -143,12 +143,8 @@ body.has-bar .wrap { padding-bottom: 120px; }
 }
 .topbar-in { max-width: 920px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; gap: 12px; }
 .brand { display: flex; align-items: center; gap: 10px; min-width: 0; color: inherit; text-decoration: none; }
-.logo {
-  flex: 0 0 auto; display: block;
-  padding: 3px 6px; border-radius: 9px;
-  background: var(--logo-bg);
-}
-.logo img { display: block; width: auto; height: 34px; }
+.logo { flex: 0 0 auto; display: block; }
+.logo img { display: block; width: auto; height: 36px; filter: var(--logo-filter); }
 .brand-text { min-width: 0; padding-left: 12px; border-left: 1px solid var(--border); }
 .brand b { display: block; font-size: 15px; line-height: 1.2; white-space: nowrap; }
 .brand small { display: block; font-size: 12px; color: var(--muted); white-space: nowrap; }
@@ -313,11 +309,6 @@ select {
 .exams { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
 @media (min-width: 760px) { .exams { grid-template-columns: repeat(3, 1fr); } }
 .exam { padding: 14px; gap: 9px; }
-.badge-new {
-  display: inline-block; margin-right: 2px; padding: 0 7px; border-radius: 99px;
-  background: var(--brand-weak); color: var(--brand);
-  font-size: 11px; font-weight: 800; letter-spacing: .04em;
-}
 @media (max-width: 420px) {
   .exam .row-foot { flex-direction: column; align-items: flex-start; gap: 2px; }
 }

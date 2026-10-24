@@ -39,4 +39,4 @@ Files
   index.html, style.css, app.js  - the site
   data.js                        - answers, topics and explanations
   img/                           - question and choice images, one folder per exam
-  img/philnits-logo.png          - navbar logo
+  img/philnits-logo-mono.png     - navbar logo (one color, recolored for dark mode)
