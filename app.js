@@ -34,6 +34,47 @@
     });
   });
 
+  const LESSONS = window.LESSONS || [];
+  const LESSON = {};
+  const TERMS = [];
+  const TERM = {};
+  const slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  LESSONS.forEach(l => {
+    LESSON[l.id] = l;
+    l.terms.forEach(t => {
+      t.id = l.id + ':' + slug(t.t);
+      t.slug = slug(t.t);
+      t.lesson = l;
+      TERMS.push(t);
+      TERM[t.id] = t;
+    });
+  });
+
+  // A phrase without lowercase letters (an acronym) matches case-sensitively; a trailing * matches a word prefix.
+  function termRx(p) {
+    const prefix = p.endsWith('*');
+    if (prefix) p = p.slice(0, -1);
+    const body = p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const cs = !/[a-z]/.test(p);
+    const start = /^\w/.test(p) ? '\\b' : '';
+    const end = prefix ? '' : /\w$/.test(p) ? (cs ? 's?\\b' : '(?:s|es)?\\b') : '';
+    return new RegExp(start + body + end, cs ? '' : 'i');
+  }
+
+  // Links terms to the past questions whose explanations mention them (built on first use).
+  let termIndex = null;
+  function terms() {
+    if (termIndex) return termIndex;
+    const byTerm = {}, byQ = {};
+    const texts = ALL.map(k => QMAP[k].q.x.join(' '));
+    TERMS.forEach(t => {
+      const res = (t.m || [t.t].concat(t.f ? [t.f] : [])).map(termRx);
+      byTerm[t.id] = res.length ? ALL.filter((k, i) => res.some(r => r.test(texts[i]))) : [];
+      byTerm[t.id].forEach(k => (byQ[k] || (byQ[k] = [])).push(t.id));
+    });
+    return (termIndex = { byTerm, byQ });
+  }
+
   /* ---------- helpers ---------- */
   const $ = id => document.getElementById(id);
   const app = $('app');
@@ -75,7 +116,10 @@
     check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
     x: '<path d="M6 6l12 12M18 6L6 18"/>',
     play: '<path d="M7 4.5v15l12-7.5z"/>',
-    shuffle: '<path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/>'
+    shuffle: '<path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/>',
+    book: '<path d="M4 19.5V5a2 2 0 0 1 2-2h14v16H6.5A2.5 2.5 0 0 0 4 21.5"/><path d="M8 7h8M8 11h6"/>',
+    search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
+    cards: '<rect x="3" y="7" width="14" height="14" rx="2"/><path d="M7 3h12a2 2 0 0 1 2 2v12"/>'
   };
   const ic = name => '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + PATHS[name] + '</svg>';
   const closeBtn = '<button type="button" class="icon-btn" data-close aria-label="Close">' + ic('x') + '</button>';
@@ -88,6 +132,7 @@
       mix: { exams: EXAMS.map(e => e.key), topics: ['t', 'm', 's'], n: 20 },
       hist: {},   // question key -> { a: last answer (original index), ok, n: attempts, w: wrong count }
       flags: {},  // question key -> 1
+      terms: {},  // term id -> 1 known, 0 still learning
       sess: {},   // session id -> session
       last: null  // id of the last session opened
     };
@@ -270,16 +315,30 @@
     closeOverlay();
     const parts = location.hash.replace(/^#\/?/, '').split('/');
     const s = parts[0] === 'q' || parts[0] === 'r' ? getSession(parts[1]) : null;
-    document.body.classList.toggle('has-bar', !!(s && parts[0] === 'q'));
+    const learning = parts[0] === 'learn' || parts[0] === 'cards';
+    document.body.classList.toggle('has-bar', !!(s && parts[0] === 'q') || parts[0] === 'cards');
+    document.querySelectorAll('[data-nav]').forEach(a => a.classList.toggle('on', (a.dataset.nav === 'learn') === learning));
+    let anchor = null;
     if (s && parts[0] === 'q') {
       state.last = s.id;
       renderQuiz(s);
     } else if (s && parts[0] === 'r') {
       renderResults(s);
+    } else if (parts[0] === 'learn' && LESSON[parts[1]]) {
+      renderLesson(LESSON[parts[1]]);
+      anchor = parts[2] ? $('t-' + parts[2]) : null;
+    } else if (parts[0] === 'learn') {
+      renderLessons();
+    } else if (parts[0] === 'cards' && parts[1]) {
+      renderCards(parts[1]);
     } else {
       renderHome();
     }
     window.scrollTo(0, 0);
+    if (anchor) {
+      anchor.scrollIntoView({ block: 'center' });
+      anchor.classList.add('hl');
+    }
   }
 
   /* ---------- home ---------- */
@@ -322,6 +381,13 @@
       ${tile('mistakes', 'redo', 'bad', 'Review mistakes', ov.wrong.length ? plural(ov.wrong.length, 'question') + ' you got wrong' : 'Nothing to review yet', !ov.wrong.length)}
       ${tile('flagged', 'flag', 'flag', 'Flagged', ov.flags.length ? plural(ov.flags.length, 'question') + ' saved for later' : 'Flag questions to come back to them', !ov.flags.length)}
       ${tile('mock', 'clock', 'ok', 'Mock exam', '100 questions, 120 minutes, with a pass estimate')}
+    </div>`);
+
+    const known = TERMS.filter(t => state.terms[t.id] === 1).length;
+    h += section('Learn the terms', 'Short definitions linked to the past questions that use them', `<div class="card learn-cta">
+      <span class="ic">${ic('book')}</span>
+      <div class="learn-text"><b>${LESSONS.length} lessons · ${TERMS.length} terms</b><span>${known ? known + ' terms marked as known' : 'Read a lesson, then test yourself with flashcards'}</span></div>
+      <div class="learn-btns"><a class="btn" href="#/cards/top">${ic('cards')}Flashcards</a><a class="btn primary" href="#/learn">Open lessons</a></div>
     </div>`);
 
     h += section('Practice by topic', 'Each set picks ' + DRILL_N + ' questions, favoring ones you missed or have not seen', `<div class="topics">${TOPICS.map(t => {
@@ -466,6 +532,7 @@
         </div>
         ${stem}
         ${choices}
+        <div id="qterms"></div>
       </article>
       <p class="kbd-hint kbd-only"><kbd>A</kbd>–<kbd>D</kbd> answer · <kbd>Enter</kbd> next · <kbd>←</kbd> <kbd>→</kbd> move · <kbd>F</kbd> flag · <kbd>G</kbd> question list</p>
       <nav class="actionbar" aria-label="Question navigation"><div class="in">
@@ -510,6 +577,7 @@
       }
     });
     if (!q.o) $('whyList').innerHTML = rev ? LET.map((L, i) => why(q, i, ans, L)).join('') : '';
+    $('qterms').innerHTML = rev ? termChips(questionTerms(key, q), 'Terms in this question') : '';
 
     const v = $('verdict'), right = LET[perm.indexOf(q.a)];
     if (!rev) {
@@ -701,6 +769,10 @@
         <div class="tbar"><i style="width:${p}%"></i>${mock ? '<span class="mark" title="30% minimum"></span>' : ''}</div></div>`;
     }).join('');
 
+    const missTerms = {};
+    r.missed.forEach(i => (terms().byQ[s.items[i]] || []).forEach(id => { missTerms[id] = (missTerms[id] || 0) + 1; }));
+    const reviewIds = Object.keys(missTerms).sort((a, b) => missTerms[b] - missTerms[a]).slice(0, 10);
+
     const rows = r.missed.map(i => {
       const k = s.items[i], { ex, q } = QMAP[k], a = s.ans[k];
       const perm = q.o ? s.perm[k] || [0, 1, 2, 3] : [0, 1, 2, 3];
@@ -728,6 +800,7 @@
         </div>
       </section>
       ${bars ? section('By topic', mock ? 'The line marks the 30% minimum' : '', '<div class="card tbars">' + bars + '</div>') : ''}
+      ${reviewIds.length ? section('Terms to review', 'Used in the questions you missed. Tap one for its meaning', '<div class="card terms-card">' + termChips(reviewIds) + '</div>') : ''}
       ${rows ? section(mock ? 'Missed or unanswered' : 'Missed questions', 'Open one to read the explanations', '<div class="misses">' + rows + '</div>') : ''}`;
   }
 
@@ -743,6 +816,260 @@
       case 'review': s.idx = 0; save(); go('#/q/' + s.id); break;
       case 'jump': s.idx = +el.dataset.i; save(); go('#/q/' + s.id); break;
       case 'restart': state.sess[s.id] = examSession(s.id.slice(3)); save(); go('#/q/' + s.id); break;
+      default: return false;
+    }
+    return true;
+  }
+
+  /* ---------- lessons ---------- */
+  const DECKS = { top: 'Most-tested terms', mistakes: 'Terms from your mistakes', learning: 'Still learning' };
+  const deckTitle = d => (LESSON[d] ? LESSON[d].title : DECKS[d] || 'Flashcards');
+  const knownIn = list => list.filter(t => state.terms[t.id] === 1).length;
+  const patternsOf = t => t.m || [t.t].concat(t.f ? [t.f] : []);
+
+  function lessonQuestions(l) {
+    const idx = terms(), set = new Set();
+    l.terms.forEach(t => idx.byTerm[t.id].forEach(k => set.add(k)));
+    return [...set];
+  }
+
+  // Terms in a question, those used in the correct answer's explanation first, then the most specific.
+  function questionTerms(key, q) {
+    const idx = terms(), right = q.x[q.a] || '';
+    const score = id => (patternsOf(TERM[id]).some(p => termRx(p).test(right)) ? 0 : 1000) + idx.byTerm[id].length;
+    return (idx.byQ[key] || []).slice().sort((a, b) => score(a) - score(b)).slice(0, 6);
+  }
+
+  function termChips(ids, label) {
+    if (!ids.length) return '';
+    return `<div class="qterms">${label ? `<span class="qterms-label">${ic('book')}${label}</span>` : ''}<div class="chips">${ids.map(id =>
+      `<button type="button" class="chip term-chip${state.terms[id] === 1 ? ' known' : ''}" data-act="term" data-id="${id}">${esc(TERM[id].t)}</button>`).join('')}</div></div>`;
+  }
+
+  function deckTerms(deck) {
+    if (LESSON[deck]) return LESSON[deck].terms;
+    const idx = terms();
+    if (deck === 'top') {
+      return TERMS.filter(t => idx.byTerm[t.id].length).sort((a, b) => idx.byTerm[b.id].length - idx.byTerm[a.id].length).slice(0, 40);
+    }
+    if (deck === 'learning') return TERMS.filter(t => state.terms[t.id] === 0);
+    if (deck === 'mistakes') {
+      const count = {};
+      Object.keys(state.hist).forEach(k => {
+        if (QMAP[k] && !state.hist[k].ok) (idx.byQ[k] || []).forEach(id => { count[id] = (count[id] || 0) + 1; });
+      });
+      return Object.keys(count).sort((a, b) => count[b] - count[a]).slice(0, 40).map(id => TERM[id]);
+    }
+    return [];
+  }
+
+  function termCard(t, withLesson) {
+    const known = state.terms[t.id] === 1;
+    const n = terms().byTerm[t.id].length;
+    const foot = (withLesson ? `<a class="pill ${t.lesson.c}" href="#/learn/${t.lesson.id}/${t.slug}">${esc(t.lesson.title)}</a>` : '')
+      + (n ? `<button type="button" class="link go" data-act="term-practice" data-id="${t.id}">Practice ${plural(n, 'question')}${ic('arrowR')}</button>` : '');
+    return `<article class="card term${known ? ' is-known' : ''}" id="t-${t.slug}" data-wl="${withLesson ? 1 : 0}">
+      <div class="term-head">
+        <div class="term-name"><h3>${esc(t.t)}</h3>${t.f ? `<span class="term-full">${esc(t.f)}</span>` : ''}</div>
+        <button type="button" class="known-btn${known ? ' on' : ''}" data-act="known" data-id="${t.id}" aria-pressed="${known}">${ic('check')}<span>${known ? 'Known' : 'Mark known'}</span></button>
+      </div>
+      <p class="term-def">${esc(t.d)}</p>
+      ${t.x ? `<p class="term-tip"><b>Tip</b>${esc(t.x)}</p>` : ''}
+      ${foot ? `<div class="term-foot">${foot}</div>` : ''}
+    </article>`;
+  }
+
+  function lessonCard(l) {
+    const known = knownIn(l.terms), qn = lessonQuestions(l).length;
+    return `<a class="card lesson ${l.c}" href="#/learn/${l.id}">
+      <div class="row-top"><b>${esc(l.title)}</b><span class="pill ${l.c}">${l.terms.length} terms</span></div>
+      <span class="desc">${esc(l.intro)}</span>
+      <div class="meter"><i style="width:${pct(known, l.terms.length)}%"></i></div>
+      <div class="row-foot"><span>${known ? known + ' / ' + l.terms.length + ' known' : 'Not started'}${qn ? ' · ' + qn + ' questions' : ''}</span><span class="go">Open${ic('arrowR')}</span></div>
+    </a>`;
+  }
+
+  let searchQuery = '';
+  function renderLessons() {
+    view = { name: 'lessons' };
+    document.title = 'Lessons · IT Passport Reviewer';
+    const top = deckTerms('top'), miss = deckTerms('mistakes'), learn = deckTerms('learning');
+    const deck = (id, icon, tone, title, desc, off) => `<button type="button" class="tile" data-act="deck" data-deck="${id}"${off ? ' disabled' : ''}>
+      <span class="ic ${tone}">${ic(icon)}</span><b>${title}</b><span>${desc}</span></button>`;
+    app.innerHTML = `
+      <section class="page-head">
+        <h1>Lessons</h1>
+        <p>${TERMS.length} terms that come up in IT Passport questions, in ${LESSONS.length} short lessons. Each term links to the past questions that use it.</p>
+        <label class="search">${ic('search')}<input id="termSearch" type="search" placeholder="Search terms, e.g. SLA or WBS" autocomplete="off" aria-label="Search terms" value="${esc(searchQuery)}"></label>
+      </section>
+      <div id="searchResults"></div>
+      <div id="lessonsBody">
+        ${section('Flashcards', 'Test what you remember, one term at a time', `<div class="tiles decks">
+          ${deck('top', 'bolt', '', DECKS.top, plural(top.length, 'term') + ' used in the most questions')}
+          ${deck('mistakes', 'redo', 'bad', DECKS.mistakes, miss.length ? plural(miss.length, 'term') + ' from questions you missed' : 'Answer some questions first', !miss.length)}
+          ${deck('learning', 'cards', 'flag', DECKS.learning, learn.length ? plural(learn.length, 'term') + ' you marked Again' : 'Cards you mark Again show up here', !learn.length)}
+        </div>`)}
+        ${TOPICS.map(tp => {
+          const ls = LESSONS.filter(l => l.c === tp.id);
+          return section(tp.name, plural(ls.length, 'lesson') + ' · ' + ls.reduce((n, l) => n + l.terms.length, 0) + ' terms', `<div class="lessons">${ls.map(lessonCard).join('')}</div>`);
+        }).join('')}
+      </div>`;
+    const input = $('termSearch');
+    input.addEventListener('input', () => { searchQuery = input.value; renderSearch(); });
+    renderSearch();
+  }
+
+  function renderSearch() {
+    const box = $('searchResults'), body = $('lessonsBody');
+    if (!box) return;
+    const q = searchQuery.trim().toLowerCase();
+    body.hidden = !!q;
+    if (!q) { box.innerHTML = ''; return; }
+    const name = t => (t.t + ' ' + (t.f || '')).toLowerCase();
+    const hits = TERMS.filter(t => name(t).includes(q)).concat(TERMS.filter(t => !name(t).includes(q) && t.d.toLowerCase().includes(q)));
+    box.innerHTML = hits.length
+      ? `<p class="search-count">${plural(hits.length, 'term')} found${hits.length > 50 ? ', showing the first 50' : ''}</p><div class="term-list">${hits.slice(0, 50).map(t => termCard(t, true)).join('')}</div>`
+      : `<p class="search-count">No terms match “${esc(searchQuery.trim())}”.</p>`;
+  }
+
+  function renderLesson(l) {
+    view = { name: 'lesson', id: l.id };
+    document.title = l.title + ' · Lessons · IT Passport Reviewer';
+    const qs = lessonQuestions(l);
+    const i = LESSONS.indexOf(l), prev = LESSONS[i - 1], nxt = LESSONS[i + 1];
+    app.innerHTML = `
+      <div class="qhead">
+        <a class="icon-btn" href="#/learn" aria-label="Back to lessons">${ic('back')}</a>
+        <div class="titles"><b>${esc(l.title)}</b><span>${TOPIC[l.c].name} · ${plural(l.terms.length, 'term')}</span></div>
+      </div>
+      <section class="card lesson-hero ${l.c}">
+        <p>${esc(l.intro)}</p>
+        <div class="lesson-stats"><span id="lessonKnown">${knownIn(l.terms)} of ${l.terms.length} known</span>${qs.length ? '<span>' + plural(qs.length, 'related question') + '</span>' : ''}</div>
+        <div class="hero-actions">
+          <a class="btn primary" href="#/cards/${l.id}">${ic('cards')}Flashcards</a>
+          ${qs.length ? `<button type="button" class="btn" data-act="lesson-practice">${ic('bolt')}Practice ${Math.min(DRILL_N, qs.length)} questions</button>` : ''}
+        </div>
+      </section>
+      <div class="term-list">${l.terms.map(t => termCard(t, false)).join('')}</div>
+      <nav class="lesson-nav" aria-label="Other lessons">
+        ${prev ? `<a class="card lesson-link" href="#/learn/${prev.id}"><small>${ic('arrowL')}Previous</small><b>${esc(prev.title)}</b></a>` : '<span></span>'}
+        ${nxt ? `<a class="card lesson-link next" href="#/learn/${nxt.id}"><small>Next${ic('arrowR')}</small><b>${esc(nxt.title)}</b></a>` : '<span></span>'}
+      </nav>`;
+  }
+
+  function toggleKnown(id, btn) {
+    if (state.terms[id] === 1) delete state.terms[id]; else state.terms[id] = 1;
+    save();
+    const card = btn && btn.closest('.term');
+    if (card) card.outerHTML = termCard(TERM[id], card.dataset.wl === '1');
+    const l = LESSON[view.id];
+    if (view.name === 'lesson' && l && $('lessonKnown')) $('lessonKnown').textContent = knownIn(l.terms) + ' of ' + l.terms.length + ' known';
+  }
+
+  let cardRun = null;
+  function renderCards(deck, restart) {
+    if (!cardRun || cardRun.deck !== deck || restart) {
+      const list = deckTerms(deck);
+      cardRun = { deck, queue: shuffle(list.map(t => t.id)), total: list.length, again: new Set(), flipped: false };
+    }
+    view = { name: 'cards', id: deck };
+    document.title = 'Flashcards · ' + deckTitle(deck) + ' · IT Passport Reviewer';
+    const r = cardRun, done = r.total - r.queue.length;
+    const back = LESSON[deck] ? '#/learn/' + deck : '#/learn';
+    let body;
+    if (!r.total) {
+      body = `<section class="card result-hero"><h1>No cards in this deck yet</h1><p class="muted">Study a lesson or answer some questions first.</p>
+        <div class="res-actions"><a class="btn primary" href="#/learn">Back to lessons</a></div></section>`;
+    } else if (!r.queue.length) {
+      const first = r.total - r.again.size, qs = LESSON[deck] ? lessonQuestions(LESSON[deck]) : [];
+      body = `<section class="card result-hero">
+        <div class="ring ${pct(first, r.total) >= 60 ? 'ok' : 'warn'}" style="--p:${pct(first, r.total)}"><b>${first}/${r.total}</b></div>
+        <h1>Deck complete</h1><p class="muted">You knew ${first} of ${plural(r.total, 'term')} on the first try.</p>
+        <div class="res-actions">
+          ${qs.length ? `<button type="button" class="btn primary" data-act="lesson-practice">${ic('bolt')}Practice ${Math.min(DRILL_N, qs.length)} questions</button>` : ''}
+          <button type="button" class="btn${qs.length ? '' : ' primary'}" data-act="deck-restart">${ic('redo')}Study again</button>
+          <a class="btn" href="${back}">${LESSON[deck] ? 'Back to lesson' : 'Back to lessons'}</a>
+        </div></section>`;
+    } else {
+      const t = TERM[r.queue[0]];
+      body = `<div class="card flash${r.flipped ? ' flipped' : ''}" data-act="flip" role="button" tabindex="0" aria-label="${r.flipped ? 'Hide the meaning' : 'Show the meaning'}">
+          <span class="pill ${t.lesson.c}">${esc(t.lesson.title)}</span>
+          <h2>${esc(t.t)}</h2>
+          ${t.f ? `<p class="term-full">${esc(t.f)}</p>` : ''}
+          ${r.flipped ? `<div class="flash-back"><p>${esc(t.d)}</p>${t.x ? `<p class="term-tip"><b>Tip</b>${esc(t.x)}</p>` : ''}</div>` : '<p class="flash-hint">Say the meaning to yourself, then tap the card to check.</p>'}
+        </div>
+        <p class="kbd-hint kbd-only"><kbd>Space</kbd> flip · <kbd>1</kbd> again · <kbd>2</kbd> got it</p>
+        <nav class="actionbar" aria-label="Flashcard controls"><div class="in">
+          <button type="button" class="btn" data-act="card-again">${ic('redo')}<span>Again</span></button>
+          <button type="button" class="btn ghost" data-act="flip">${r.flipped ? 'Hide' : 'Show'}</button>
+          <button type="button" class="btn primary" data-act="card-got">${ic('check')}<span>Got it</span></button>
+        </div></nav>`;
+    }
+    app.innerHTML = `
+      <div class="qhead">
+        <a class="icon-btn" href="${back}" aria-label="Back">${ic('back')}</a>
+        <div class="titles"><b>Flashcards</b><span>${esc(deckTitle(deck))}${r.queue.length ? ' · ' + (done + 1) + ' of ' + r.total : ''}</span></div>
+        ${r.total ? `<div class="qright"><span class="score"><span class="ok">${ic('check')}${done}</span></span></div>` : ''}
+      </div>
+      <div class="pbar"><i class="ok" style="width:${r.total ? done / r.total * 100 : 0}%"></i></div>
+      ${body}`;
+  }
+
+  function cardStep(got) {
+    const r = cardRun;
+    if (!r || !r.queue.length) return;
+    const id = r.queue.shift();
+    if (got) {
+      state.terms[id] = 1;
+    } else {
+      state.terms[id] = 0;
+      r.again.add(id);
+      r.queue.splice(Math.min(3, r.queue.length), 0, id); // see it again a few cards later
+    }
+    r.flipped = false;
+    save();
+    renderCards(r.deck);
+  }
+
+  function flipCard() {
+    if (!cardRun || !cardRun.queue.length) return;
+    cardRun.flipped = !cardRun.flipped;
+    renderCards(cardRun.deck);
+  }
+
+  function openTerm(id) {
+    const t = TERM[id];
+    if (!t) return;
+    const n = terms().byTerm[id].length, known = state.terms[id] === 1;
+    openModal(`<div class="modal-head"><h2>${esc(t.t)}</h2>${closeBtn}</div>
+      ${t.f ? `<p class="term-full">${esc(t.f)}</p>` : ''}
+      <p>${esc(t.d)}</p>
+      ${t.x ? `<p class="term-tip"><b>Tip</b>${esc(t.x)}</p>` : ''}
+      <p class="muted term-src">From the lesson ${esc(t.lesson.title)}${n ? ' · used in ' + plural(n, 'past question') : ''}</p>
+      <div class="modal-actions">
+        <button type="button" class="btn${known ? ' known-on' : ''}" data-act="term-known" data-id="${id}">${ic('check')}${known ? 'Known' : 'Mark as known'}</button>
+        <a class="btn primary" href="#/learn/${t.lesson.id}/${t.slug}">Open lesson</a>
+      </div>`);
+  }
+
+  function onLearnAct(act, el) {
+    switch (act) {
+      case 'deck': go('#/cards/' + el.dataset.deck); break;
+      case 'known': toggleKnown(el.dataset.id, el); break;
+      case 'term-practice': {
+        const t = TERM[el.dataset.id];
+        startDrill(smartPick(terms().byTerm[t.id], DRILL_N), t.t, 'Term practice');
+        break;
+      }
+      case 'lesson-practice': {
+        const l = LESSON[view.id];
+        if (l) startDrill(smartPick(lessonQuestions(l), DRILL_N), l.title, 'Lesson practice');
+        break;
+      }
+      case 'flip': flipCard(); break;
+      case 'card-again': cardStep(false); break;
+      case 'card-got': cardStep(true); break;
+      case 'deck-restart': renderCards(view.id, true); window.scrollTo(0, 0); break;
       default: return false;
     }
     return true;
@@ -844,6 +1171,16 @@
       case 'mock-time': mockOpt.mins = +el.dataset.v; el.parentNode.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === el)); break;
       case 'mock-start': closeOverlay(); startMock(mockOpt.src, mockOpt.mins); break;
       case 'mock-resume': closeOverlay(); go('#/q/mock'); break;
+      case 'term-known': {
+        const id = el.dataset.id;
+        if (state.terms[id] === 1) delete state.terms[id]; else state.terms[id] = 1;
+        save();
+        const known = state.terms[id] === 1;
+        el.classList.toggle('known-on', known);
+        el.innerHTML = ic('check') + (known ? 'Known' : 'Mark as known');
+        document.querySelectorAll('.term-chip[data-id="' + id + '"]').forEach(c => c.classList.toggle('known', known));
+        break;
+      }
       case 'set-toggle': {
         const k = el.dataset.k;
         state.settings[k] = !state.settings[k];
@@ -908,10 +1245,12 @@
     if (!el || el.disabled) return;
     const act = el.dataset.act;
     if (act === 'home') { go('#/'); return; }
+    if (act === 'term') { openTerm(el.dataset.id); return; }
     if (act === 'smart' && view.name === 'results') { onHomeAct('smart', el); return; }
     if (act === 'mock' && view.name === 'results') { openMockSetup(); return; }
     if (view.name === 'quiz') onQuizAct(act, el);
     else if (view.name === 'results') onResultsAct(act, el);
+    else if (view.name === 'lessons' || view.name === 'lesson' || view.name === 'cards') onLearnAct(act, el);
     else onHomeAct(act, el);
   });
 
@@ -934,6 +1273,15 @@
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (overlayOpen()) {
       if (e.key === 'Escape') closeOverlay();
+      return;
+    }
+    if (view.name === 'cards') {
+      const ftag = e.target.tagName;
+      if ((e.key === 'Enter' || e.key === ' ') && (ftag === 'BUTTON' || ftag === 'A')) return;
+      const ck = e.key.toLowerCase();
+      if (ck === ' ' || ck === 'enter') { e.preventDefault(); flipCard(); }
+      else if (ck === '1' || ck === 'arrowleft') cardStep(false);
+      else if (ck === '2' || ck === 'arrowright') cardStep(true);
       return;
     }
     if (view.name !== 'quiz') return;

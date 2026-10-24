@@ -20,6 +20,16 @@ Ways to study
     then a pass estimate (60% overall and at least 30% in each topic).
   - Custom set: pick exams, topics and how many questions.
 
+Lessons (the Lessons tab)
+  - 18 short lessons with 409 key terms (Technology, Management, Strategy), each with a
+    plain-language definition and tips for terms that are easy to confuse.
+  - Every term shows how many past questions use it and can start a practice set of them.
+  - Flashcards per lesson, plus decks for the most-tested terms, terms from questions you
+    missed, and cards you marked "Again". Mark terms as known to track progress.
+  - Search box to look up any term.
+  - After answering a question, its key terms appear as chips; tap one for its meaning.
+    Results pages list the terms behind the questions you missed.
+
 While answering
   - Every choice shows an explanation after you answer.
   - "Shuffle answer choices" (Settings) reassigns the letters A-D.
@@ -38,5 +48,6 @@ Notes on the answer keys
 Files
   index.html, style.css, app.js  - the site
   data.js                        - answers, topics and explanations
+  lessons.js                     - lesson text and term definitions
   img/                           - question and choice images, one folder per exam
   img/philnits-logo-mono.png     - navbar logo (one color, recolored for dark mode)
