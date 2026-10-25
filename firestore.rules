@@ -4,9 +4,9 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Firebase user IDs of the admins. Sign in at /admin.html to see yours, then replace the placeholder.
+    // Firebase user IDs of the admins (sign in at /admin.html to see yours). Add more as 'id1', 'id2'.
     function isAdmin() {
-      return request.auth != null && request.auth.uid in ['PASTE_YOUR_USER_ID_HERE'];
+      return request.auth != null && request.auth.uid in ['fCM3hJK1HJPmmwXUaQJeh7VqIi92'];
     }
 
     // Testimonials sent from the site. Anyone can send one; only admins can read, change or delete them.

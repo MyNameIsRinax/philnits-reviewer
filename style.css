@@ -731,6 +731,7 @@ code { padding: 1px 6px; border-radius: 6px; background: var(--surface-2); font-
   display: grid; gap: 1px; padding: 7px 10px; border-radius: 9px;
   background: var(--text); color: var(--bg); box-shadow: var(--shadow-lg); font-size: 12.5px;
 }
+.chart-tip[hidden] { display: none; }
 .chart-tip b { font-size: 15px; }
 .chart-tip span { opacity: .8; }
 .chart-grid { display: grid; gap: 14px; }

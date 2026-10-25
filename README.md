@@ -140,7 +140,7 @@ These run on Firebase's free Spark plan. Until `firebase-config.js` is filled in
 3. **Firestore Database → Create database.** Pick a location near your visitors (`asia-southeast1`, Singapore, for the Philippines; it cannot be changed later) and start in production mode.
 4. **Firestore Database → Rules.** Replace everything with the contents of [`firestore.rules`](firestore.rules) and click **Publish**.
 5. **Authentication → Get started → Sign-in method → Google → Enable.** Then **Authentication → Settings → Authorized domains → Add domain:** `mynameisrinax.github.io`
-6. Push, open the admin panel on the live site and sign in. It shows your user ID. Replace `PASTE_YOUR_USER_ID_HERE` in `firestore.rules` with it, both here and in the console's Rules tab, then publish again. To add another admin, add their user ID to the same list.
+6. Push, open the admin panel on the live site and sign in. It shows your user ID. Put it in the list of admin user IDs in `firestore.rules` (in `isAdmin()`), both here and in the console's Rules tab, then publish again. To add another admin, add their user ID to the same list.
 
 **Free limits:** 50,000 reads and 20,000 writes per day, and 1 GiB of storage. A visit uses about 1–3 writes (counts are saved every 3 minutes and when the tab closes) and at most one read every 30 minutes for testimonials, so several thousand visits a day fit. If a day's limit is ever reached, counting pauses until the next day and the reviewer keeps working.
 

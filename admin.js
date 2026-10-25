@@ -148,7 +148,7 @@ function notAdminScreen(user) {
   message('This account is not an admin yet', `<p>You are signed in as <b>${esc(user.email)}</b>. To make it an admin:</p>
     <ol class="steps">
       <li>Copy your user ID: <code id="uid">${esc(user.uid)}</code> <button type="button" class="btn sm" id="copyUid">Copy</button></li>
-      <li>In <code>firestore.rules</code>, replace <code>PASTE_YOUR_USER_ID_HERE</code> with it.</li>
+      <li>In <code>firestore.rules</code>, add it to the list of admin user IDs in <code>isAdmin()</code>.</li>
       <li>Paste the rules into Firebase console &gt; Firestore Database &gt; Rules and click <b>Publish</b>.</li>
       <li>Reload this page.</li>
     </ol>`);
