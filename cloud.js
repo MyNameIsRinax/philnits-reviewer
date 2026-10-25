@@ -131,12 +131,18 @@ async function start() {
     },
 
     // Sends a testimonial for review. It is only shown after an admin approves it.
+    // Optional ratings (1-5 per aspect) stay private: they are saved with the story and added to the
+    // day's totals, so the admin panel can show averages even after a story is deleted.
     async submitStory(story) {
-      await fs.addDoc(fs.collection(db, 'submissions'), {
+      const ratings = story.ratings || {};
+      const doc = {
         name: story.name, exam: story.exam, result: story.result, message: story.message,
         status: 'pending', createdAt: fs.serverTimestamp()
-      });
+      };
+      if (Object.keys(ratings).length) doc.ratings = ratings;
+      await fs.addDoc(fs.collection(db, 'submissions'), doc);
       add('stories');
+      Object.keys(ratings).forEach(k => { addTo('rt', k + 'Sum', ratings[k]); addTo('rt', k + 'Count'); });
       flush();
       gaEvent('submit_testimonial', {});
     }

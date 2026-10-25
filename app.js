@@ -119,7 +119,8 @@
     shuffle: '<path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/>',
     book: '<path d="M4 19.5V5a2 2 0 0 1 2-2h14v16H6.5A2.5 2.5 0 0 0 4 21.5"/><path d="M8 7h8M8 11h6"/>',
     search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
-    cards: '<rect x="3" y="7" width="14" height="14" rx="2"/><path d="M7 3h12a2 2 0 0 1 2 2v12"/>'
+    cards: '<rect x="3" y="7" width="14" height="14" rx="2"/><path d="M7 3h12a2 2 0 0 1 2 2v12"/>',
+    star: '<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>'
   };
   const ic = name => '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + PATHS[name] + '</svg>';
   const closeBtn = '<button type="button" class="icon-btn" data-close aria-label="Close">' + ic('x') + '</button>';
@@ -465,6 +466,24 @@
   /* ---------- testimonials ---------- */
   const STORY_MAX = 600;
   const STORY_SENT_KEY = 'ipq_story_at';
+  const NOT_TAKEN = 'Not taken yet';
+  // What visitors can rate when they share a story. Ratings only appear in the admin panel, never on the site.
+  // The ids must match admin.js and the ratings check in firestore.rules.
+  const RATE_ASPECTS = [['overall', 'Overall'], ['explanations', 'Explanations'], ['lessons', 'Lessons and flashcards'], ['ease', 'Ease of use']];
+
+  // The latest IT Passport exams (held every April and October), newest first, so answers are written the same way.
+  function recentExams(n) {
+    const now = new Date();
+    let year = now.getFullYear(), october = now.getMonth() >= 9;
+    if (now.getMonth() < 3) { year--; october = true; }
+    const list = [];
+    while (list.length < n) {
+      list.push((october ? 'October ' : 'April ') + year);
+      if (!october) year--;
+      october = !october;
+    }
+    return list;
+  }
   const initials = name => (String(name || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('') || '?').toUpperCase();
 
   // Fills the home page's testimonial slot once the approved stories arrive from Firebase.
@@ -552,10 +571,21 @@
       <p class="muted">Tell others how the reviewer helped you. Every story is read before it goes up, so yours won’t appear right away.</p>
       <form id="tForm" class="tform" novalidate>
         <label class="fld"><span>Name to show</span><input name="name" maxlength="40" autocomplete="nickname" placeholder="e.g. Juan D." required></label>
-        <label class="fld"><span>Exam you took <em>(optional)</em></span><input name="exam" maxlength="40" placeholder="e.g. April 2026"></label>
-        <label class="fld"><span>Result <em>(optional)</em></span><select name="result">
-          <option value="">Prefer not to say</option><option>Passed</option><option>Waiting for results</option><option>Did not pass yet</option>
-        </select></label>
+        <div class="fld-row">
+          <label class="fld"><span>Exam you took <em>(optional)</em></span><select name="exam">
+            <option value="">Prefer not to say</option>${recentExams(4).map(e => `<option>${e}</option>`).join('')}<option>${NOT_TAKEN}</option>
+          </select></label>
+          <label class="fld"><span>Result <em>(optional)</em></span><select name="result">
+            <option value="">Prefer not to say</option><option>Passed</option><option>Waiting for results</option><option>Did not pass yet</option>
+          </select></label>
+        </div>
+        <fieldset class="rate">
+          <legend>Rate the reviewer <em>(optional, only the site owner sees this)</em></legend>
+          ${RATE_ASPECTS.map(([id, label]) => `<div class="rate-row"><span id="rl-${id}">${label}</span>
+            <span class="stars" role="radiogroup" aria-labelledby="rl-${id}">${[1, 2, 3, 4, 5].map(n =>
+              `<label class="star"><input type="radio" name="rate-${id}" value="${n}" aria-label="${n} out of 5">${ic('star')}</label>`).join('')}</span>
+          </div>`).join('')}
+        </fieldset>
         <label class="fld"><span>Your story</span><textarea name="message" rows="5" maxlength="${STORY_MAX}" placeholder="How did the reviewer help you prepare?" required></textarea><small class="fld-count" id="tLen">0 / ${STORY_MAX}</small></label>
         <label class="consent"><input type="checkbox" name="consent" value="yes"><span>I agree that this may be shown on the site with the name above.</span></label>
         <input class="hp" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
@@ -564,6 +594,21 @@
       </form>`);
     const form = $('tForm'), f = form.elements;
     f.message.addEventListener('input', () => { $('tLen').textContent = f.message.value.length + ' / ' + STORY_MAX; });
+    f.exam.addEventListener('change', () => {
+      f.result.disabled = f.exam.value === NOT_TAKEN;
+      if (f.result.disabled) f.result.value = '';
+    });
+    form.querySelectorAll('.stars').forEach(group => {
+      const paint = v => group.querySelectorAll('input').forEach(i => i.parentNode.classList.toggle('on', +i.value <= v));
+      group.addEventListener('change', e => { group.dataset.v = e.target.value; paint(+e.target.value); });
+      // Tapping the chosen star again clears that rating (the click runs before the change).
+      group.addEventListener('click', e => {
+        if (e.target.tagName !== 'INPUT' || group.dataset.v !== e.target.value) return;
+        e.target.checked = false;
+        group.dataset.v = '';
+        paint(0);
+      });
+    });
     form.addEventListener('submit', e => { e.preventDefault(); sendStory(form); });
     f.name.focus();
   }
@@ -583,14 +628,20 @@
     };
     if (f.website.value) { done(); return; } // a hidden field that only spam bots fill in
     if (!window.siteCloud) return fail('Sending stories is not available right now.');
+    const ratings = {};
+    RATE_ASPECTS.forEach(([id]) => {
+      const picked = form.querySelector(`input[name="rate-${id}"]:checked`);
+      if (picked) ratings[id] = +picked.value;
+    });
     btn.disabled = true;
     btn.textContent = 'Sending…';
     try {
       await window.siteCloud.submitStory({
         name: f.name.value.trim().slice(0, 40),
-        exam: f.exam.value.trim().slice(0, 40),
+        exam: f.exam.value,
         result: f.result.value,
-        message: f.message.value.trim().slice(0, STORY_MAX)
+        message: f.message.value.trim().slice(0, STORY_MAX),
+        ratings
       });
       done();
     } catch (e) {

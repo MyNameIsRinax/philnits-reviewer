@@ -683,6 +683,21 @@ kbd {
 .consent input { flex: 0 0 auto; width: 18px; height: 18px; margin-top: 1px; accent-color: var(--brand); }
 .hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
 .form-error { padding: 9px 12px; border-radius: 10px; background: var(--bad-weak); color: var(--bad); font-size: 14px; }
+.fld-row { display: grid; gap: 12px; }
+@media (min-width: 480px) { .fld-row { grid-template-columns: 1fr 1fr; } }
+.fld select:disabled { opacity: .55; }
+.rate { display: grid; gap: 2px; min-width: 0; margin: 0; padding: 8px 12px 10px; border: 1px solid var(--border); border-radius: 12px; }
+.rate legend { padding: 0 4px; font-size: 13.5px; font-weight: 700; color: var(--muted); }
+.rate legend em { font-style: normal; font-weight: 500; color: var(--faint); }
+.rate-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0 10px; font-size: 14.5px; }
+.stars { display: flex; margin-left: auto; }
+.star { position: relative; display: grid; place-items: center; width: 34px; height: 34px; color: var(--border-strong); cursor: pointer; }
+.star input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.star svg { width: 24px; height: 24px; border-radius: 6px; transition: transform .1s; }
+.star:hover svg { transform: scale(1.12); }
+.star.on { color: var(--flag); }
+.star.on svg { fill: currentColor; }
+.star input:focus-visible + svg { outline: 2px solid var(--brand); outline-offset: 2px; }
 
 /* ---------- admin ---------- */
 .foot-small { font-size: 12px; }
@@ -745,6 +760,9 @@ code { padding: 1px 6px; border-radius: 6px; background: var(--surface-2); font-
 .bl-fill { display: block; height: 100%; border-radius: 0 4px 4px 0; background: var(--brand); }
 .bl-value { min-width: 64px; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
 .bl-value small { margin-left: 6px; font-weight: 500; color: var(--muted); }
+.ratings-card { margin-top: 14px; }
+.rating-list .bl-value { min-width: 108px; }
+@media (min-width: 760px) { .rating-list { grid-template-columns: 1fr 1fr; column-gap: 32px; } }
 
 .table-view { margin-top: 10px; font-size: 14px; }
 .table-view summary { cursor: pointer; color: var(--brand); font-weight: 600; }

@@ -16,14 +16,25 @@ service cloud.firestore {
     }
 
     function validStory(d) {
-      return d.keys().hasOnly(['name', 'exam', 'result', 'message', 'status', 'createdAt'])
+      return d.keys().hasOnly(['name', 'exam', 'result', 'message', 'status', 'createdAt', 'ratings'])
         && d.keys().hasAll(['name', 'exam', 'result', 'message', 'status', 'createdAt'])
         && d.name is string && d.name.size() > 0 && d.name.size() <= 40
-        && d.exam is string && d.exam.size() <= 40
+        && d.exam is string && d.exam.matches('((April|October) 20[0-9]{2}|Not taken yet)?')
         && d.result in ['', 'Passed', 'Waiting for results', 'Did not pass yet']
         && d.message is string && d.message.size() >= 10 && d.message.size() <= 600
         && d.status == 'pending'
-        && d.createdAt == request.time;
+        && d.createdAt == request.time
+        && (!('ratings' in d) || validRatings(d.ratings));
+    }
+
+    // Optional 1-5 star ratings sent with a story. Only admins can read them.
+    function validRatings(r) {
+      return r is map && r.keys().hasOnly(['overall', 'explanations', 'lessons', 'ease'])
+        && stars(r, 'overall') && stars(r, 'explanations') && stars(r, 'lessons') && stars(r, 'ease');
+    }
+
+    function stars(r, k) {
+      return !(k in r) || (r[k] is int && r[k] >= 1 && r[k] <= 5);
     }
 
     // Approved testimonials shown on the home page, kept in one document so each visit costs one read.
@@ -55,14 +66,15 @@ service cloud.firestore {
       return d.keys().hasOnly(['visits', 'visitors', 'newVisitors', 'mobile', 'desktop',
                                'refDirect', 'refSearch', 'refSocial', 'refOther',
                                'answers', 'correct', 'mocks', 'lessons', 'flashcards', 'stories',
-                               'ex', 'h'])
+                               'ex', 'h', 'rt'])
         && grows('visits') && grows('visitors') && grows('newVisitors')
         && grows('mobile') && grows('desktop')
         && grows('refDirect') && grows('refSearch') && grows('refSocial') && grows('refOther')
         && grows('answers') && grows('correct') && grows('mocks')
         && grows('lessons') && grows('flashcards') && grows('stories')
         && (!('ex' in d) || (d.ex is map && d.ex.size() <= 80))
-        && (!('h' in d) || (d.h is map && d.h.size() <= 24));
+        && (!('h' in d) || (d.h is map && d.h.size() <= 24))
+        && (!('rt' in d) || (d.rt is map && d.rt.size() <= 8));
     }
   }
 }

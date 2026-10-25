@@ -128,6 +128,7 @@ python tools/import_exams.py --dry-run
 These run on Firebase's free Spark plan. Until `firebase-config.js` is filled in, the site works as usual without them.
 
 - **Testimonials.** Visitors can share their story from the home page. Stories wait in the admin panel, and only the ones you publish appear in the carousel. To ask people for a story, send them [`/#/share`](https://mynameisrinax.github.io/philnits-reviewer/#/share): it opens the site with the story form already showing.
+- **Ratings.** The story form also asks for optional 1–5 star ratings (overall, explanations, lessons and flashcards, ease of use). They are never shown on the site; the admin panel shows the averages and each story's ratings.
 - **Visitor stats.** Visits are counted anonymously per day: visitors, new visitors, devices, where visitors came from, busiest hours, questions answered and % correct, mock exams, lessons and flashcards. Google Analytics adds countries, browsers and real-time visitors.
 - **Admin panel** at [`/admin.html`](https://mynameisrinax.github.io/philnits-reviewer/admin.html) (sign in with Google). Preview it with made-up data at [`admin.html?demo=1`](https://mynameisrinax.github.io/philnits-reviewer/admin.html?demo=1).
 
@@ -141,6 +142,8 @@ These run on Firebase's free Spark plan. Until `firebase-config.js` is filled in
 4. **Firestore Database → Rules.** Replace everything with the contents of [`firestore.rules`](firestore.rules) and click **Publish**.
 5. **Authentication → Get started → Sign-in method → Google → Enable.** Then **Authentication → Settings → Authorized domains → Add domain:** `mynameisrinax.github.io`
 6. Push, open the admin panel on the live site and sign in. It shows your user ID. Put it in the list of admin user IDs in `firestore.rules` (in `isAdmin()`), both here and in the console's Rules tab, then publish again. To add another admin, add their user ID to the same list.
+
+Whenever `firestore.rules` changes, paste it into the console's Rules tab again and click **Publish**. The rules check every story and counter that visitors send, so new form fields only work once the updated rules are published.
 
 **Free limits:** 50,000 reads and 20,000 writes per day, and 1 GiB of storage. A visit uses about 1–3 writes (counts are saved every 3 minutes and when the tab closes) and at most one read every 30 minutes for testimonials, so several thousand visits a day fit. If a day's limit is ever reached, counting pauses until the next day and the reviewer keeps working.
 

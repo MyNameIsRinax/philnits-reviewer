@@ -6,6 +6,8 @@ const root = document.getElementById('admin');
 const userBox = document.getElementById('adminUser');
 const tip = document.getElementById('tip');
 const DEMO = new URLSearchParams(location.search).has('demo');
+// What visitors rate in the "Share your story" form (same ids as app.js and firestore.rules).
+const RATE_ASPECTS = [['overall', 'Overall'], ['explanations', 'Explanations'], ['lessons', 'Lessons and flashcards'], ['ease', 'Ease of use']];
 
 /* ---------- helpers ---------- */
 const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -84,10 +86,12 @@ function demoBackend() {
       refDirect: Math.round(v * 0.5), refSocial: Math.round(v * 0.6), refSearch: Math.round(v * 0.25), refOther: Math.round(v * 0.05),
       answers: ans, correct: Math.round(ans * (0.55 + rnd() * 0.2)), mocks: Math.round(v * 0.08), lessons: Math.round(v * 0.9), flashcards: Math.round(v * 3),
       stories: rnd() > 0.8 ? 1 : 0, h, ex: { '2026S': Math.round(ans * 0.3), '2025A': Math.round(ans * 0.2), '2025S': Math.round(ans * 0.15), '2024A': Math.round(ans * 0.12), '2024S': Math.round(ans * 0.1), '2022S': Math.round(ans * 0.05) } };
+    // a few ratings every third day, from a fixed pattern so the other sample numbers stay the same
+    if (i % 3 === 0) stats[k].rt = { overallSum: 9, overallCount: 2, explanationsSum: 10, explanationsCount: 2, lessonsSum: 4, lessonsCount: 1, easeSum: 8 + i % 2, easeCount: 2 };
   });
   let pending = [
-    { id: 'p1', name: 'Demo Student', exam: 'April 2026', result: 'Passed', message: 'Sample submission for previewing the admin panel. The flashcards helped with the strategy terms.', at: Date.now() - 3600000 },
-    { id: 'p2', name: 'Sample Name', exam: '', result: 'Waiting for results', message: 'Another sample submission used only in demo mode.', at: Date.now() - 86400000 }
+    { id: 'p1', name: 'Demo Student', exam: 'April 2026', result: 'Passed', message: 'Sample submission for previewing the admin panel. The flashcards helped with the strategy terms.', ratings: { overall: 5, explanations: 5, lessons: 4, ease: 5 }, at: Date.now() - 3600000 },
+    { id: 'p2', name: 'Sample Name', exam: 'Not taken yet', result: '', message: 'Another sample submission used only in demo mode.', ratings: { overall: 4, ease: 3 }, at: Date.now() - 86400000 }
   ];
   let published = [{ id: 'x1', name: 'Demo Reviewer', detail: 'Passed, October 2025', text: 'Sample published testimonial shown only in demo mode.', at: Date.now() - 5 * 86400000 }];
   const user = { email: 'demo@example.com', uid: 'demo-user' };
@@ -193,12 +197,12 @@ function drawTab() {
 
 /* ---------- overview ---------- */
 function totals() {
-  const t = { ex: {}, h: {} };
+  const t = { ex: {}, h: {}, rt: {} };
   data.keys.forEach(k => {
     const d = data.stats[k] || {};
     Object.keys(d).forEach(f => {
       if (typeof d[f] === 'number') t[f] = (t[f] || 0) + d[f];
-      else if (d[f] && typeof d[f] === 'object' && (f === 'ex' || f === 'h')) Object.keys(d[f]).forEach(s => { t[f][s] = (t[f][s] || 0) + d[f][s]; });
+      else if (d[f] && typeof d[f] === 'object' && t[f]) Object.keys(d[f]).forEach(s => { t[f][s] = (t[f][s] || 0) + d[f][s]; });
     });
   });
   return t;
@@ -249,6 +253,7 @@ function drawOverview() {
       <section class="card chart-card"><div class="chart-head"><h2>Where visitors come from</h2><span class="muted">First page of each visit</span></div>${barList(sources)}</section>
       <section class="card chart-card"><div class="chart-head"><h2>Most practiced exams</h2><span class="muted">Questions answered</span></div>${exams.length ? barList(exams) : '<p class="muted">No answers yet.</p>'}</section>
     </div>
+    <section class="card chart-card ratings-card"><div class="chart-head"><h2>Ratings</h2><span class="muted">Average stars from the Share your story form. Not shown on the site.</span></div>${ratingList(t.rt)}</section>
     ${cfg.measurementId && !DEMO ? `<p class="admin-note">Countries, cities, browsers and real-time visitors are in Google Analytics:
       <a href="https://console.firebase.google.com/project/${encodeURIComponent(cfg.projectId)}/analytics" target="_blank" rel="noopener">open Firebase Analytics</a>.</p>` : ''}`;
 
@@ -285,6 +290,24 @@ function barList(rows) {
       <span class="bl-track"><span class="bl-fill" style="width:${value ? Math.max(2, value / max * 100) : 0}%"></span></span>
       <span class="bl-value">${fmt(value)}<small>${pct(value, total)}%</small></span>
     </li>`).join('')}</ul>`;
+}
+
+// Average rating per aspect (1-5 stars) as a meter out of 5, with how many people rated it.
+function ratingList(rt) {
+  if (!RATE_ASPECTS.some(([id]) => rt[id + 'Count'])) return '<p class="muted">No ratings in this period yet. They come from the Share your story form.</p>';
+  return `<ul class="barlist rating-list">${RATE_ASPECTS.map(([id, label]) => {
+    const n = rt[id + 'Count'] || 0, avg = n ? (rt[id + 'Sum'] || 0) / n : 0;
+    return `<li>
+      <span class="bl-label">${esc(label)}</span>
+      <span class="bl-track" role="meter" aria-valuemin="0" aria-valuemax="5" aria-valuenow="${avg.toFixed(1)}" aria-label="${esc(label)}"><span class="bl-fill" style="width:${avg / 5 * 100}%"></span></span>
+      <span class="bl-value">${n ? avg.toFixed(1) : '–'}<small>${n} ${n === 1 ? 'rating' : 'ratings'}</small></span>
+    </li>`;
+  }).join('')}</ul>`;
+}
+
+function ratingSummary(r) {
+  const parts = RATE_ASPECTS.filter(([id]) => r && r[id]).map(([id, label]) => label + ' ' + r[id] + '★');
+  return parts.length ? parts.join(' · ') : 'No ratings';
 }
 
 // Single-series column chart: thin columns with rounded tops, hairline grid, a tooltip on hover and focus.
@@ -365,6 +388,7 @@ function drawStories() {
   if (ui.storyTab === 'pending') {
     list.innerHTML = pending.length ? pending.map(s => `<article class="card story" data-id="${esc(s.id)}">
         <div class="story-meta"><b>${esc(s.name)}</b><span>${esc([s.result, s.exam].filter(Boolean).join(' · ') || 'No exam details')}</span><span>${esc(when(s.at))}</span></div>
+        <div class="story-meta story-ratings">${esc(ratingSummary(s.ratings))}</div>
         <label class="fld"><span>Name to show</span><input data-f="name" maxlength="40" value="${esc(s.name)}"></label>
         <label class="fld"><span>Line under the name</span><input data-f="detail" maxlength="60" value="${esc([s.result, s.exam].filter(Boolean).join(', '))}"></label>
         <label class="fld"><span>Testimonial</span><textarea data-f="text" rows="4" maxlength="600">${esc(s.message)}</textarea></label>
