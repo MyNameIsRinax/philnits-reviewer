@@ -66,7 +66,7 @@
   function terms() {
     if (termIndex) return termIndex;
     const byTerm = {}, byQ = {};
-    const texts = ALL.map(k => QMAP[k].q.x.join(' '));
+    const texts = ALL.map(k => (QMAP[k].q.x || []).join(' '));
     TERMS.forEach(t => {
       const res = (t.m || [t.t].concat(t.f ? [t.f] : [])).map(termRx);
       byTerm[t.id] = res.length ? ALL.filter((k, i) => res.some(r => r.test(texts[i]))) : [];
@@ -294,7 +294,12 @@
     s.mock.end = Date.now();
     s.done = true;
     s.idx = 0;
-    s.items.forEach(k => { if (s.ans[k] !== undefined) record(state.hist, k, s.ans[k]); });
+    s.items.forEach(k => {
+      if (s.ans[k] === undefined) return;
+      record(state.hist, k, s.ans[k]);
+      track('answer', { exam: QMAP[k].ex.key, correct: s.ans[k] === QMAP[k].q.a });
+    });
+    track('mock', { source: s.sub });
     save();
     stopTimer();
     if (timedOut) toast('Time is up. Your exam was submitted.');
@@ -312,6 +317,7 @@
 
   function route() {
     stopTimer();
+    stopCarousel();
     closeOverlay();
     const parts = location.hash.replace(/^#\/?/, '').split('/');
     const s = parts[0] === 'q' || parts[0] === 'r' ? getSession(parts[1]) : null;
@@ -335,6 +341,7 @@
       renderHome();
     }
     window.scrollTo(0, 0);
+    track('view');
     if (anchor) {
       anchor.scrollIntoView({ block: 'center' });
       anchor.classList.add('hl');
@@ -417,6 +424,8 @@
       <div class="panel-body" id="mixBody"></div>
     </details></section>`;
 
+    h += '<div id="tSlot"></div>';
+
     h += `<footer class="foot">
       <p>Progress is saved in this browser only.</p>
       <p class="kbd-only">While answering: <kbd>A</kbd>–<kbd>D</kbd> or <kbd>1</kbd>–<kbd>4</kbd> to answer · <kbd>Enter</kbd> next · <kbd>←</kbd> <kbd>→</kbd> move · <kbd>F</kbd> flag · <kbd>G</kbd> question list</p>
@@ -425,6 +434,164 @@
     app.innerHTML = h;
     $('mixPanel').addEventListener('toggle', e => { mixOpen = e.target.open; });
     renderMix();
+    loadStories();
+  }
+
+  /* ---------- cloud (Firebase, optional) ---------- */
+  // cloud.js loads Firebase after the page and announces itself with a 'cloud:ready' event;
+  // window.siteCloud is null when Firebase is not configured. Events before then wait in a queue.
+  const cloudQueue = [];
+  let cloudKnown = false;
+  function onCloud(fn) {
+    if (cloudKnown) { if (window.siteCloud) fn(window.siteCloud); return; }
+    document.addEventListener('cloud:ready', () => { if (window.siteCloud) fn(window.siteCloud); }, { once: true });
+  }
+  document.addEventListener('cloud:ready', () => {
+    cloudKnown = true;
+    const api = window.siteCloud;
+    cloudQueue.splice(0).forEach(([e, p]) => { if (api) api.track(e, p); });
+  }, { once: true });
+  function track(event, params) {
+    if (cloudKnown) { if (window.siteCloud) window.siteCloud.track(event, params); }
+    else if (cloudQueue.length < 100) cloudQueue.push([event, params]);
+  }
+
+  /* ---------- testimonials ---------- */
+  const STORY_MAX = 600;
+  const STORY_SENT_KEY = 'ipq_story_at';
+  const initials = name => (String(name || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('') || '?').toUpperCase();
+
+  // Fills the home page's testimonial slot once the approved stories arrive from Firebase.
+  function loadStories() {
+    onCloud(api => api.stories().then(list => {
+      const slot = $('tSlot');
+      if (!slot || view.name !== 'home') return;
+      slot.innerHTML = testimonialsSection(list.filter(t => t && t.text));
+      initCarousel();
+    }));
+  }
+
+  function testimonialsSection(list) {
+    const cards = list.map(t => `<figure class="card tcard">
+        <blockquote>${esc(t.text)}</blockquote>
+        <figcaption><span class="avatar" aria-hidden="true">${esc(initials(t.name))}</span><span><b>${esc(t.name || 'Anonymous')}</b>${t.detail ? `<small>${esc(t.detail)}</small>` : ''}</span></figcaption>
+      </figure>`).join('');
+    const nav = list.length > 1 ? `<div class="tcar-nav">
+        <button type="button" class="icon-btn" data-act="t-prev" aria-label="Previous testimonial">${ic('arrowL')}</button>
+        ${list.length <= 10
+          ? `<div class="tcar-dots">${list.map((_, i) => `<button type="button" class="dot" data-act="t-go" data-i="${i}" aria-label="Show testimonial ${i + 1}"></button>`).join('')}</div>`
+          : '<span class="tcar-count" id="tCount" aria-live="polite"></span>'}
+        <button type="button" class="icon-btn" data-act="t-next" aria-label="Next testimonial">${ic('arrowR')}</button>
+      </div>` : '';
+    const share = `<div class="card t-share">
+        <div><b>Did the reviewer help you?</b><span>Share your story. Every one is read before it is posted.</span></div>
+        <button type="button" class="btn primary" data-act="t-share">Share your story</button>
+      </div>`;
+    const note = list.length ? list.length + (list.length === 1 ? ' story' : ' stories') + ' from people who studied here' : '';
+    return section(list.length ? 'What reviewers say' : 'Share your story', note, (list.length ? `<div class="tcar" role="region" aria-roledescription="carousel" aria-label="Testimonials">
+        <div class="tcar-track" id="tTrack">${cards}</div>${nav}</div>` : '') + share);
+  }
+
+  let carTimer = null;
+  function stopCarousel() {
+    clearInterval(carTimer);
+    carTimer = null;
+  }
+
+  function carIndex(track) {
+    const step = track.children[1].offsetLeft - track.children[0].offsetLeft;
+    return Math.round(track.scrollLeft / step);
+  }
+
+  function carGo(i) {
+    const track = $('tTrack');
+    if (!track || track.children.length < 2) return;
+    const n = track.children.length;
+    const atEnd = track.scrollLeft + track.clientWidth >= track.scrollWidth - 4;
+    if (i >= n || (atEnd && i > carIndex(track))) i = 0;
+    if (i < 0) i = n - 1;
+    track.scrollTo({ left: track.children[i].offsetLeft - track.children[0].offsetLeft, behavior: 'smooth' });
+  }
+
+  function initCarousel() {
+    stopCarousel();
+    const track = $('tTrack');
+    if (!track || track.children.length < 2) return;
+    const paint = () => {
+      const i = carIndex(track), n = track.children.length;
+      document.querySelectorAll('.tcar-dots .dot').forEach((d, k) => d.classList.toggle('on', k === i));
+      if ($('tCount')) $('tCount').textContent = (i + 1) + ' / ' + n;
+    };
+    track.addEventListener('scroll', () => requestAnimationFrame(paint), { passive: true });
+    paint();
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const box = track.parentNode;
+    carTimer = setInterval(() => {
+      if (!document.body.contains(track)) { stopCarousel(); return; }
+      if (document.hidden || box.matches(':hover') || box.contains(document.activeElement) || overlayOpen()) return;
+      carGo(carIndex(track) + 1);
+    }, 7000);
+  }
+
+  function openShare() {
+    let sentAt = 0;
+    try { sentAt = +localStorage.getItem(STORY_SENT_KEY) || 0; } catch (e) { sentAt = 0; }
+    if (Date.now() - sentAt < 12 * 3600 * 1000) {
+      openModal(`<div class="modal-head"><h2>Thank you!</h2>${closeBtn}</div>
+        <p>You already sent a story recently. It will appear on the site after it has been reviewed.</p>
+        <div class="modal-actions"><button type="button" class="btn primary" data-close>Close</button></div>`);
+      return;
+    }
+    openModal(`<div class="modal-head"><h2>Share your story</h2>${closeBtn}</div>
+      <p class="muted">Tell others how the reviewer helped you. Every story is read before it goes up, so yours won’t appear right away.</p>
+      <form id="tForm" class="tform" novalidate>
+        <label class="fld"><span>Name to show</span><input name="name" maxlength="40" autocomplete="nickname" placeholder="e.g. Juan D." required></label>
+        <label class="fld"><span>Exam you took <em>(optional)</em></span><input name="exam" maxlength="40" placeholder="e.g. April 2026"></label>
+        <label class="fld"><span>Result <em>(optional)</em></span><select name="result">
+          <option value="">Prefer not to say</option><option>Passed</option><option>Waiting for results</option><option>Did not pass yet</option>
+        </select></label>
+        <label class="fld"><span>Your story</span><textarea name="message" rows="5" maxlength="${STORY_MAX}" placeholder="How did the reviewer help you prepare?" required></textarea><small class="fld-count" id="tLen">0 / ${STORY_MAX}</small></label>
+        <label class="consent"><input type="checkbox" name="consent" value="yes"><span>I agree that this may be shown on the site with the name above.</span></label>
+        <input class="hp" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+        <p class="form-error" id="tError" role="alert" hidden></p>
+        <div class="modal-actions"><button type="button" class="btn" data-close>Cancel</button><button type="submit" class="btn primary" id="tSend">Send</button></div>
+      </form>`);
+    const form = $('tForm'), f = form.elements;
+    f.message.addEventListener('input', () => { $('tLen').textContent = f.message.value.length + ' / ' + STORY_MAX; });
+    form.addEventListener('submit', e => { e.preventDefault(); sendStory(form); });
+    f.name.focus();
+  }
+
+  async function sendStory(form) {
+    const err = $('tError'), btn = $('tSend'), f = form.elements;
+    const fail = msg => { err.textContent = msg; err.hidden = false; };
+    err.hidden = true;
+    if (!f.name.value.trim()) return fail('Please enter the name to show.');
+    if (f.message.value.trim().length < 10) return fail('Please write a few words about your experience.');
+    if (!f.consent.checked) return fail('Please tick the box to agree that your story may be shown.');
+    const done = () => {
+      try { localStorage.setItem(STORY_SENT_KEY, String(Date.now())); } catch (e) { /* storage blocked */ }
+      overlay.querySelector('.modal').innerHTML = `<div class="modal-head"><h2>Thank you!</h2>${closeBtn}</div>
+        <p>Your story was sent. It will appear on the site after it has been reviewed.</p>
+        <div class="modal-actions"><button type="button" class="btn primary" data-close>Close</button></div>`;
+    };
+    if (f.website.value) { done(); return; } // a hidden field that only spam bots fill in
+    if (!window.siteCloud) return fail('Sending stories is not available right now.');
+    btn.disabled = true;
+    btn.textContent = 'Sending…';
+    try {
+      await window.siteCloud.submitStory({
+        name: f.name.value.trim().slice(0, 40),
+        exam: f.exam.value.trim().slice(0, 40),
+        result: f.result.value,
+        message: f.message.value.trim().slice(0, STORY_MAX)
+      });
+      done();
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = 'Send';
+      fail('Your story could not be sent right now. Please check your connection and try again.');
+    }
   }
 
   function mixPool() {
@@ -462,7 +629,12 @@
       case 'flagged': { const f = overview().flags; startDrill(f, 'Flagged questions', plural(f.length, 'question')); break; }
       case 'mock': openMockSetup(); break;
       case 'topic': { const t = el.dataset.topic; startDrill(smartPick(TOPIC_KEYS[t], DRILL_N), TOPIC[t].name, 'Topic practice'); break; }
-      case 'exam': { const s = state.sess['ex-' + el.dataset.key]; go((s && s.done ? '#/r/' : '#/q/') + 'ex-' + el.dataset.key); break; }
+      case 'exam': {
+        const s = state.sess['ex-' + el.dataset.key];
+        track('exam', { exam: el.dataset.key });
+        go((s && s.done ? '#/r/' : '#/q/') + 'ex-' + el.dataset.key);
+        break;
+      }
       case 'mix-ex': {
         const i = m.exams.indexOf(el.dataset.key);
         if (i >= 0) m.exams.splice(i, 1); else m.exams.push(el.dataset.key);
@@ -475,6 +647,10 @@
         save(); renderMix(); break;
       }
       case 'mix-n': m.n = +el.dataset.n; save(); renderMix(); break;
+      case 't-prev': carGo(carIndex($('tTrack')) - 1); break;
+      case 't-next': carGo(carIndex($('tTrack')) + 1); break;
+      case 't-go': carGo(+el.dataset.i); break;
+      case 't-share': openShare(); break;
       case 'mix-start': {
         const pool = shuffle(mixPool());
         startDrill(m.n ? pool.slice(0, m.n) : pool, 'Custom set', 'Custom mix');
@@ -550,7 +726,7 @@
 
   function why(q, o, ans, letter) {
     const ok = o === q.a;
-    return `<div class="why ${ok ? 'ok' : 'no'}${!ok && o !== ans ? ' other' : ''}"><span class="tag">${letter ? letter + ' · ' : ''}${ok ? 'Correct' : 'Incorrect'}</span>${o === ans ? '<span class="mine">Your answer</span>' : ''}${esc(q.x[o] || '')}</div>`;
+    return `<div class="why ${ok ? 'ok' : 'no'}${!ok && o !== ans ? ' other' : ''}"><span class="tag">${letter ? letter + ' · ' : ''}${ok ? 'Correct' : 'Incorrect'}</span>${o === ans ? '<span class="mine">Your answer</span>' : ''}${q.x && q.x[o] ? esc(q.x[o]) : '<span class="muted">Explanation coming soon.</span>'}</div>`;
   }
 
   // Updates everything that depends on the answer state without reloading the images.
@@ -653,6 +829,7 @@
     if (s.ans[key] !== undefined) return;
     s.ans[key] = o;
     record(state.hist, key, o);
+    track('answer', { exam: QMAP[key].ex.key, correct: o === q.a });
     save(); paint(s);
     if (o === q.a && state.settings.autoNext) {
       const at = s.idx;
@@ -835,7 +1012,7 @@
 
   // Terms in a question, those used in the correct answer's explanation first, then the most specific.
   function questionTerms(key, q) {
-    const idx = terms(), right = q.x[q.a] || '';
+    const idx = terms(), right = (q.x || [])[q.a] || '';
     const score = id => (patternsOf(TERM[id]).some(p => termRx(p).test(right)) ? 0 : 1000) + idx.byTerm[id].length;
     return (idx.byQ[key] || []).slice().sort((a, b) => score(a) - score(b)).slice(0, 6);
   }
@@ -935,6 +1112,7 @@
   function renderLesson(l) {
     view = { name: 'lesson', id: l.id };
     document.title = l.title + ' · Lessons · IT Passport Reviewer';
+    track('lesson', { lesson: l.id });
     const qs = lessonQuestions(l);
     const i = LESSONS.indexOf(l), prev = LESSONS[i - 1], nxt = LESSONS[i + 1];
     app.innerHTML = `
@@ -971,6 +1149,7 @@
     if (!cardRun || cardRun.deck !== deck || restart) {
       const list = deckTerms(deck);
       cardRun = { deck, queue: shuffle(list.map(t => t.id)), total: list.length, again: new Set(), flipped: false };
+      track('deck', { deck });
     }
     view = { name: 'cards', id: deck };
     document.title = 'Flashcards · ' + deckTitle(deck) + ' · IT Passport Reviewer';
@@ -1019,6 +1198,7 @@
     const r = cardRun;
     if (!r || !r.queue.length) return;
     const id = r.queue.shift();
+    track('flashcard');
     if (got) {
       state.terms[id] = 1;
     } else {
@@ -1307,6 +1487,8 @@
   window.addEventListener('hashchange', route);
 
   save(); // persists progress migrated from the previous version on first load
+  const years = EXAMS.map(e => e.year);
+  document.querySelector('.brand small').textContent = 'ITPEC past exams ' + Math.min(...years) + '–' + Math.max(...years);
   applyTheme();
   route();
 })();

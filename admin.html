@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Admin · IT Passport Reviewer</title>
+<link rel="stylesheet" href="style.css?v=4.0">
+<script>
+  // Apply the reviewer's saved light/dark choice before the page paints.
+  try {
+    var saved = JSON.parse(localStorage.getItem('ipq_v3') || '{}');
+    var th = saved.settings && saved.settings.theme;
+    if (th === 'light' || th === 'dark') document.documentElement.setAttribute('data-theme', th);
+  } catch (e) { /* storage unavailable */ }
+</script>
+</head>
+<body class="admin-page">
+<header class="topbar">
+  <div class="topbar-in">
+    <a class="brand" href="./" aria-label="Back to the reviewer">
+      <span class="logo"><img src="img/philnits-logo-mono.png" width="200" height="91" alt="PhilNITS"></span>
+      <span class="brand-text"><b>Admin</b><small>IT Passport Reviewer</small></span>
+    </a>
+    <div class="admin-user" id="adminUser"></div>
+  </div>
+</header>
+
+<main id="admin" class="wrap" aria-live="polite"><p class="muted">Loading…</p></main>
+<script>
+  // Browsers do not run module scripts or Google sign-in on a page opened from disk.
+  if (!/^https?:$/.test(location.protocol)) {
+    document.getElementById('admin').innerHTML = '<section class="card admin-msg"><h1>Open this page from the website</h1>' +
+      '<p>The admin panel only works when opened from the website (…/philnits-reviewer/admin.html) or a local web server, not as a file from your computer.</p></section>';
+  }
+</script>
+
+<div id="tip" class="chart-tip" role="tooltip" hidden></div>
+<script src="firebase-config.js?v=4.0"></script>
+<script type="module" src="admin.js?v=4.3"></script>
+</body>
+</html>
