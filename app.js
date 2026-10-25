@@ -337,6 +337,12 @@
       renderLessons();
     } else if (parts[0] === 'cards' && parts[1]) {
       renderCards(parts[1]);
+    } else if (parts[0] === 'share') {
+      // Link to send people (#/share): the home page with the story form open.
+      // The address becomes #/ so closing the form or reloading does not reopen it.
+      history.replaceState(null, '', '#/');
+      renderHome();
+      openShare();
     } else {
       renderHome();
     }

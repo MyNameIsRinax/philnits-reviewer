@@ -127,7 +127,7 @@ python tools/import_exams.py --dry-run
 
 These run on Firebase's free Spark plan. Until `firebase-config.js` is filled in, the site works as usual without them.
 
-- **Testimonials.** Visitors can share their story from the home page. Stories wait in the admin panel, and only the ones you publish appear in the carousel.
+- **Testimonials.** Visitors can share their story from the home page. Stories wait in the admin panel, and only the ones you publish appear in the carousel. To ask people for a story, send them [`/#/share`](https://mynameisrinax.github.io/philnits-reviewer/#/share): it opens the site with the story form already showing.
 - **Visitor stats.** Visits are counted anonymously per day: visitors, new visitors, devices, where visitors came from, busiest hours, questions answered and % correct, mock exams, lessons and flashcards. Google Analytics adds countries, browsers and real-time visitors.
 - **Admin panel** at [`/admin.html`](https://mynameisrinax.github.io/philnits-reviewer/admin.html) (sign in with Google). Preview it with made-up data at [`admin.html?demo=1`](https://mynameisrinax.github.io/philnits-reviewer/admin.html?demo=1).
 
