@@ -847,18 +847,36 @@
   }
 
   // Scales the stem and the choices separately so each fits the card; short choices stay full size on phones.
+  // Images that would need tiny text keep a readable minimum and scroll sideways instead, unless fitting needs
+  // at most 10% less than that minimum. The scale is rounded down so a fitted image is never a fraction of a
+  // pixel wider than its box, which phones would otherwise let you scroll.
   function fitImages() {
     const s = cur(), card = $('qcard');
     if (!s || !card) return;
     const { q } = QMAP[s.items[s.idx]];
     const size = state.settings.size;
-    const scale = r => (size === 'L' ? Math.min(Math.max(r * 1.3, 0.55), 1.3)
-      : size === 'S' ? Math.min(Math.max(r, 0.34), 0.82)
-      : Math.min(Math.max(r, 0.36), 1)).toFixed(3);
+    const fit = (box, w) => {
+      const r = box.getBoundingClientRect().width / w;
+      const floor = min => (r < min * 0.9 ? min : r);
+      const k = size === 'L' ? Math.min(Math.max(r * 1.3, 0.55), 1.3)
+        : size === 'S' ? Math.min(floor(0.34), 0.82)
+        : Math.min(floor(0.36), 1);
+      return (Math.floor(k * 1000) / 1000).toFixed(3);
+    };
     const stem = card.querySelector('.stem');
-    stem.style.setProperty('--k', scale(stem.clientWidth / (q.o ? q.s[1] : q.f[1])));
+    stem.style.setProperty('--k', fit(stem, q.o ? q.s[1] : q.f[1]));
     const c = card.querySelector('.cimg');
-    if (q.o && c) $('choices').style.setProperty('--k', scale(c.clientWidth / Math.max(...q.o.map(o => o[1]))));
+    if (!q.o || !c) return;
+    // All choices share one scale so their text matches; a choice that would then stick out by 10% or less
+    // is fitted on its own, since scrolling it would only reveal a sliver.
+    const k = fit(c, Math.max(...q.o.map(o => o[1])));
+    const boxW = c.getBoundingClientRect().width;
+    $('choices').style.setProperty('--k', k);
+    card.querySelectorAll('.cimg .qi').forEach(im => {
+      const w = +im.style.getPropertyValue('--w');
+      im.style.removeProperty('--k');
+      if (size !== 'L' && w * k > boxW && w * k <= boxW / 0.9) im.style.setProperty('--k', (Math.floor(boxW / w * 1000) / 1000).toFixed(3));
+    });
   }
 
   const preloaded = {};
