@@ -53,7 +53,7 @@ jobs:
         if: steps.run.outputs.changed == 'true' || steps.keepalive.outputs.touch == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          MESSAGE: ${{ steps.run.outputs.message || 'Check in: no new ITPEC exams' }}
+          MESSAGE: "${{ steps.run.outputs.message || 'Check in: no new ITPEC exams' }}"
           CHANGED: ${{ steps.run.outputs.changed }}
         run: |
           git config user.name "github-actions[bot]"
