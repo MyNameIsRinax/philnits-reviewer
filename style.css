@@ -688,7 +688,7 @@ kbd {
 .fld select:disabled { opacity: .55; }
 .rate { display: grid; gap: 2px; min-width: 0; margin: 0; padding: 8px 12px 10px; border: 1px solid var(--border); border-radius: 12px; }
 .rate legend { padding: 0 4px; font-size: 13.5px; font-weight: 700; color: var(--muted); }
-.rate legend em { font-style: normal; font-weight: 500; color: var(--faint); }
+.rate-row.missing > span:first-child { color: var(--bad); font-weight: 600; }
 .rate-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0 10px; font-size: 14.5px; }
 .stars { display: flex; margin-left: auto; }
 .star { position: relative; display: grid; place-items: center; width: 34px; height: 34px; color: var(--border-strong); cursor: pointer; }

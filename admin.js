@@ -90,10 +90,10 @@ function demoBackend() {
     if (i % 3 === 0) stats[k].rt = { overallSum: 9, overallCount: 2, explanationsSum: 10, explanationsCount: 2, lessonsSum: 4, lessonsCount: 1, easeSum: 8 + i % 2, easeCount: 2 };
   });
   let pending = [
-    { id: 'p1', name: 'Demo Student', exam: 'April 2026', result: 'Passed', message: 'Sample submission for previewing the admin panel. The flashcards helped with the strategy terms.', ratings: { overall: 5, explanations: 5, lessons: 4, ease: 5 }, at: Date.now() - 3600000 },
+    { id: 'p1', name: 'Demo Student', exam: 'October 2026', result: 'Passed', message: 'Sample submission for previewing the admin panel. The flashcards helped with the strategy terms.', ratings: { overall: 5, explanations: 5, lessons: 4, ease: 5 }, at: Date.now() - 3600000 },
     { id: 'p2', name: 'Sample Name', exam: 'Not taken yet', result: '', message: 'Another sample submission used only in demo mode.', ratings: { overall: 4, ease: 3 }, at: Date.now() - 86400000 }
   ];
-  let published = [{ id: 'x1', name: 'Demo Reviewer', detail: 'Passed, October 2025', text: 'Sample published testimonial shown only in demo mode.', at: Date.now() - 5 * 86400000 }];
+  let published = [{ id: 'x1', name: 'Demo Reviewer', detail: 'Passed, October 2026', text: 'Sample published testimonial shown only in demo mode.', at: Date.now() - 5 * 86400000 }];
   const user = { email: 'demo@example.com', uid: 'demo-user' };
   return {
     onUser: fn => fn(user),

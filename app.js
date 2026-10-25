@@ -471,18 +471,19 @@
   // The ids must match admin.js and the ratings check in firestore.rules.
   const RATE_ASPECTS = [['overall', 'Overall'], ['explanations', 'Explanations'], ['lessons', 'Lessons and flashcards'], ['ease', 'Ease of use']];
 
-  // The latest IT Passport exams (held every April and October), newest first, so answers are written the same way.
-  function recentExams(n) {
+  // IT Passport exams (held every April and October) since the reviewer opened during the October 2026 exam,
+  // newest first, so answers are written the same way. Later exams join the list as their month arrives.
+  function examsSinceLaunch() {
     const now = new Date();
     let year = now.getFullYear(), october = now.getMonth() >= 9;
     if (now.getMonth() < 3) { year--; october = true; }
     const list = [];
-    while (list.length < n) {
+    while ((year > 2026 || (year === 2026 && october)) && list.length < 6) {
       list.push((october ? 'October ' : 'April ') + year);
       if (!october) year--;
       october = !october;
     }
-    return list;
+    return list.length ? list : ['October 2026'];
   }
   const initials = name => (String(name || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('') || '?').toUpperCase();
 
@@ -573,16 +574,16 @@
         <label class="fld"><span>Name to show</span><input name="name" maxlength="40" autocomplete="nickname" placeholder="e.g. Juan D." required></label>
         <div class="fld-row">
           <label class="fld"><span>Exam you took <em>(optional)</em></span><select name="exam">
-            <option value="">Prefer not to say</option>${recentExams(4).map(e => `<option>${e}</option>`).join('')}<option>${NOT_TAKEN}</option>
+            <option value="">Prefer not to say</option>${examsSinceLaunch().map(e => `<option>${e}</option>`).join('')}<option>${NOT_TAKEN}</option>
           </select></label>
           <label class="fld"><span>Result <em>(optional)</em></span><select name="result">
             <option value="">Prefer not to say</option><option>Passed</option><option>Waiting for results</option><option>Did not pass yet</option>
           </select></label>
         </div>
         <fieldset class="rate">
-          <legend>Rate the reviewer <em>(optional, only the site owner sees this)</em></legend>
-          ${RATE_ASPECTS.map(([id, label]) => `<div class="rate-row"><span id="rl-${id}">${label}</span>
-            <span class="stars" role="radiogroup" aria-labelledby="rl-${id}">${[1, 2, 3, 4, 5].map(n =>
+          <legend>Rate the reviewer</legend>
+          ${RATE_ASPECTS.map(([id, label]) => `<div class="rate-row" data-rate="${id}"><span id="rl-${id}">${label}</span>
+            <span class="stars" role="radiogroup" aria-required="true" aria-labelledby="rl-${id}">${[1, 2, 3, 4, 5].map(n =>
               `<label class="star"><input type="radio" name="rate-${id}" value="${n}" aria-label="${n} out of 5">${ic('star')}</label>`).join('')}</span>
           </div>`).join('')}
         </fieldset>
@@ -599,14 +600,9 @@
       if (f.result.disabled) f.result.value = '';
     });
     form.querySelectorAll('.stars').forEach(group => {
-      const paint = v => group.querySelectorAll('input').forEach(i => i.parentNode.classList.toggle('on', +i.value <= v));
-      group.addEventListener('change', e => { group.dataset.v = e.target.value; paint(+e.target.value); });
-      // Tapping the chosen star again clears that rating (the click runs before the change).
-      group.addEventListener('click', e => {
-        if (e.target.tagName !== 'INPUT' || group.dataset.v !== e.target.value) return;
-        e.target.checked = false;
-        group.dataset.v = '';
-        paint(0);
+      group.addEventListener('change', e => {
+        group.querySelectorAll('input').forEach(i => i.parentNode.classList.toggle('on', +i.value <= +e.target.value));
+        group.parentNode.classList.remove('missing');
       });
     });
     form.addEventListener('submit', e => { e.preventDefault(); sendStory(form); });
@@ -618,6 +614,13 @@
     const fail = msg => { err.textContent = msg; err.hidden = false; };
     err.hidden = true;
     if (!f.name.value.trim()) return fail('Please enter the name to show.');
+    const ratings = {};
+    RATE_ASPECTS.forEach(([id]) => {
+      const picked = form.querySelector(`input[name="rate-${id}"]:checked`);
+      if (picked) ratings[id] = +picked.value;
+      form.querySelector(`.rate-row[data-rate="${id}"]`).classList.toggle('missing', !picked);
+    });
+    if (Object.keys(ratings).length < RATE_ASPECTS.length) return fail('Please rate each part of the reviewer.');
     if (f.message.value.trim().length < 10) return fail('Please write a few words about your experience.');
     if (!f.consent.checked) return fail('Please tick the box to agree that your story may be shown.');
     const done = () => {
@@ -628,11 +631,6 @@
     };
     if (f.website.value) { done(); return; } // a hidden field that only spam bots fill in
     if (!window.siteCloud) return fail('Sending stories is not available right now.');
-    const ratings = {};
-    RATE_ASPECTS.forEach(([id]) => {
-      const picked = form.querySelector(`input[name="rate-${id}"]:checked`);
-      if (picked) ratings[id] = +picked.value;
-    });
     btn.disabled = true;
     btn.textContent = 'Sending…';
     try {
