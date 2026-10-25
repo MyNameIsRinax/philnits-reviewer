@@ -56,8 +56,9 @@ async function firebaseBackend() {
       snap.forEach(d => { out[d.id] = d.data(); });
       return out;
     },
+    // Stories waiting for review. 'hidden' is what "Remove from site" used to set, so those come back here too.
     async pending() {
-      const snap = await F.getDocs(F.query(F.collection(db, 'submissions'), F.where('status', '==', 'pending')));
+      const snap = await F.getDocs(F.query(F.collection(db, 'submissions'), F.where('status', 'in', ['pending', 'hidden'])));
       const list = [];
       snap.forEach(d => { const v = d.data(); list.push({ id: d.id, ...v, at: v.createdAt && v.createdAt.toMillis ? v.createdAt.toMillis() : 0 }); });
       return list.sort((a, b) => b.at - a.at);
@@ -67,7 +68,8 @@ async function firebaseBackend() {
       return snap.exists() && Array.isArray(snap.data().items) ? snap.data().items : [];
     },
     savePublished: items => F.setDoc(pubRef, { items, updatedAt: F.serverTimestamp() }),
-    setStatus: (id, status) => F.updateDoc(F.doc(db, 'submissions', id), { status }).catch(() => {}),
+    // extra: other fields to save with the status, e.g. the edited version that was shown on the site
+    setStatus: (id, status, extra = {}) => F.updateDoc(F.doc(db, 'submissions', id), { status, ...extra }),
     remove: id => F.deleteDoc(F.doc(db, 'submissions', id))
   };
 }
@@ -89,9 +91,11 @@ function demoBackend() {
     // a few ratings every third day, from a fixed pattern so the other sample numbers stay the same
     if (i % 3 === 0) stats[k].rt = { overallSum: 9, overallCount: 2, explanationsSum: 10, explanationsCount: 2, lessonsSum: 4, lessonsCount: 1, easeSum: 8 + i % 2, easeCount: 2 };
   });
-  let pending = [
-    { id: 'p1', name: 'Demo Student', exam: 'October 2026', result: 'Passed', message: 'Sample submission for previewing the admin panel. The flashcards helped with the strategy terms.', ratings: { overall: 5, explanations: 5, lessons: 4, ease: 5 }, at: Date.now() - 3600000 },
-    { id: 'p2', name: 'Sample Name', exam: 'Not taken yet', result: '', message: 'Another sample submission used only in demo mode.', ratings: { overall: 4, ease: 3 }, at: Date.now() - 86400000 }
+  // every story ever sent, like the submissions collection; the review list is the pending ones
+  let stories = [
+    { id: 'p1', status: 'pending', name: 'Demo Student', exam: 'October 2026', result: 'Passed', message: 'Sample submission for previewing the admin panel. The flashcards helped with the strategy terms.', ratings: { overall: 5, explanations: 5, lessons: 4, ease: 5 }, at: Date.now() - 3600000 },
+    { id: 'p2', status: 'pending', name: 'Sample Name', exam: 'Not taken yet', result: '', message: 'Another sample submission used only in demo mode.', ratings: { overall: 4, ease: 3 }, at: Date.now() - 86400000 },
+    { id: 'x1', status: 'approved', name: 'Demo Reviewer', exam: 'October 2026', result: 'Passed', message: 'Sample published testimonial shown only in demo mode.', ratings: { overall: 5, explanations: 4, lessons: 5, ease: 4 }, at: Date.now() - 5 * 86400000 }
   ];
   let published = [{ id: 'x1', name: 'Demo Reviewer', detail: 'Passed, October 2026', text: 'Sample published testimonial shown only in demo mode.', at: Date.now() - 5 * 86400000 }];
   const user = { email: 'demo@example.com', uid: 'demo-user' };
@@ -100,11 +104,11 @@ function demoBackend() {
     signIn: async () => {}, signOut: async () => location.reload(),
     isAdmin: async () => true,
     stats: async keys => Object.fromEntries(keys.filter(k => stats[k]).map(k => [k, stats[k]])),
-    pending: async () => pending.slice(),
+    pending: async () => stories.filter(s => s.status === 'pending' || s.status === 'hidden').map(s => ({ ...s })),
     published: async () => published.slice(),
     savePublished: async items => { published = items.slice(); },
-    setStatus: async id => { pending = pending.filter(p => p.id !== id); },
-    remove: async id => { pending = pending.filter(p => p.id !== id); }
+    setStatus: async (id, status, extra = {}) => { stories = stories.map(s => (s.id === id ? { ...s, status, ...extra } : s)); },
+    remove: async id => { stories = stories.filter(s => s.id !== id); }
   };
 }
 
@@ -382,18 +386,19 @@ function drawStories() {
     </div>
     <p class="admin-note muted">${ui.storyTab === 'pending'
       ? 'Nothing is shown on the site until you publish it. You can fix typos before publishing.'
-      : 'These appear in the home page carousel in this order. Visitors may see changes up to 30 minutes later.'}</p>
+      : 'These appear in the home page carousel in this order. Remove from site sends a story back to Waiting for review. Visitors may see changes up to 30 minutes later.'}</p>
     <div class="story-list" id="storyList"></div>`;
   const list = document.getElementById('storyList');
   if (ui.storyTab === 'pending') {
-    list.innerHTML = pending.length ? pending.map(s => `<article class="card story" data-id="${esc(s.id)}">
-        <div class="story-meta"><b>${esc(s.name)}</b><span>${esc([s.result, s.exam].filter(Boolean).join(' · ') || 'No exam details')}</span><span>${esc(when(s.at))}</span></div>
+    // A story taken off the site comes back with the edits it was shown with.
+    list.innerHTML = pending.length ? pending.map(s => { const shown = s.shown || {}; return `<article class="card story" data-id="${esc(s.id)}">
+        <div class="story-meta"><b>${esc(s.name)}</b><span>${esc([s.result, s.exam].filter(Boolean).join(' · ') || 'No exam details')}</span><span>${esc(when(s.at))}</span>${s.shown ? '<span class="was-shown">Was on the site</span>' : ''}</div>
         <div class="story-meta story-ratings">${esc(ratingSummary(s.ratings))}</div>
-        <label class="fld"><span>Name to show</span><input data-f="name" maxlength="40" value="${esc(s.name)}"></label>
-        <label class="fld"><span>Line under the name</span><input data-f="detail" maxlength="60" value="${esc([s.result, s.exam].filter(Boolean).join(', '))}"></label>
-        <label class="fld"><span>Testimonial</span><textarea data-f="text" rows="4" maxlength="600">${esc(s.message)}</textarea></label>
+        <label class="fld"><span>Name to show</span><input data-f="name" maxlength="40" value="${esc(shown.name || s.name)}"></label>
+        <label class="fld"><span>Line under the name</span><input data-f="detail" maxlength="60" value="${esc(shown.detail != null ? shown.detail : [s.result, s.exam].filter(Boolean).join(', '))}"></label>
+        <label class="fld"><span>Testimonial</span><textarea data-f="text" rows="4" maxlength="600">${esc(shown.text || s.message)}</textarea></label>
         <div class="story-actions"><button type="button" class="btn danger sm" data-do="delete">Delete</button><button type="button" class="btn primary sm" data-do="publish">Publish</button></div>
-      </article>`).join('') : '<p class="muted">No testimonials waiting. New ones appear here when visitors send them.</p>';
+      </article>`; }).join('') : '<p class="muted">No testimonials waiting. New ones appear here when visitors send them.</p>';
   } else {
     list.innerHTML = published.length ? published.map((s, i) => `<article class="card story" data-i="${i}">
         <blockquote>${esc(s.text)}</blockquote>
@@ -424,15 +429,16 @@ async function storyAction(btn) {
       if (!val('name') || !val('text')) { alert('The name and the testimonial cannot be empty.'); btn.disabled = false; return; }
       const item = { id: s.id, name: val('name'), detail: val('detail'), text: val('text'), at: Date.now() };
       await api.savePublished([item].concat(data.published.filter(p => p.id !== s.id)));
-      await api.setStatus(s.id, 'approved');
+      await api.setStatus(s.id, 'approved', { shown: { name: item.name, detail: item.detail, text: item.text } });
     }
   } else {
     const i = +card.dataset.i, items = data.published.slice();
     if (act === 'unpublish') {
-      if (!confirm('Remove this testimonial from the site?')) { btn.disabled = false; return; }
+      if (!confirm('Take this testimonial off the site? It goes back to Waiting for review, so you can publish it again later.')) { btn.disabled = false; return; }
       const [gone] = items.splice(i, 1);
+      // Back to review first, so a failure leaves the story on the site instead of losing it.
+      await api.setStatus(gone.id, 'pending', { shown: { name: gone.name, detail: gone.detail || '', text: gone.text } });
       await api.savePublished(items);
-      await api.setStatus(gone.id, 'hidden');
     } else {
       const j = act === 'up' ? i - 1 : i + 1;
       [items[i], items[j]] = [items[j], items[i]];

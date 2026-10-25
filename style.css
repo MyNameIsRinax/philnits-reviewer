@@ -777,6 +777,7 @@ code { padding: 1px 6px; border-radius: 6px; background: var(--surface-2); font-
 .story blockquote { margin: 0; line-height: 1.6; }
 .story-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 13.5px; color: var(--muted); }
 .story-meta b { color: var(--text); }
+.was-shown { padding: 0 8px; border-radius: 99px; background: var(--brand-weak); color: var(--brand); font-size: 12.5px; font-weight: 600; }
 .story-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
 
 /* ---------- overlay ---------- */
